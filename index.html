@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Consumption Dashboard · FY 2569</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    background: radial-gradient(ellipse at top, #1a2332 0%, #0a0e1a 50%, #050810 100%);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    min-height: 100vh;
+    color: #e2e8f0;
+  }
+  #root { min-height: 100vh; }
+  .loader {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #00d9ff; font-family: 'JetBrains Mono', monospace;
+    background: #050810;
+    z-index: 9999;
+  }
+  .loader-spinner {
+    width: 48px; height: 48px;
+    border: 3px solid rgba(0, 217, 255, 0.2);
+    border-top-color: #00d9ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.2); }
+  }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="loader">
+    <div class="loader-spinner"></div>
+    <div style="font-size: 14px; letter-spacing: 0.2em;">LOADING DASHBOARD</div>
+    <div style="font-size: 11px; color: #64748b; margin-top: 8px;">กำลังโหลดระบบ...</div>
+  </div>
+</div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+const {
+  ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceLine, Cell
+} = Recharts;
+
+// ===== Inline SVG Icons (แทน lucide-react) =====
+const Icon = ({ d, size = 16, color = 'currentColor', strokeWidth = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" 
+       stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    {d}
+  </svg>
+);
+const IconActivity = (p) => <Icon {...p} d={<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>} />;
+const IconAlertTriangle = (p) => <Icon {...p} d={<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>} />;
+const IconTrendingDown = (p) => <Icon {...p} d={<><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></>} />;
+const IconTrendingUp = (p) => <Icon {...p} d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>} />;
+const IconZap = (p) => <Icon {...p} d={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />;
+const IconTarget = (p) => <Icon {...p} d={<><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>} />;
+const IconRefresh = (p) => <Icon {...p} d={<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />;
+const IconLink = (p) => <Icon {...p} d={<><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>} />;
+const IconCheck = (p) => <Icon {...p} d={<><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/></>} />;
+const IconCalendar = (p) => <Icon {...p} d={<><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>} />;
+
+const THAI_MONTHS = ['ตุลาคม', 'พฤศจิกายน', 'ธันวาคม', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน'];
+
+const INITIAL_DATA = [
+  { month: 'ตุลาคม', short: 'ต.ค.', target: 60530, actual: 64651, activity: 'ตรวจสอบระบบปรับอากาศ ปรับอุณหภูมิ 25°C' },
+  { month: 'พฤศจิกายน', short: 'พ.ย.', target: 45380, actual: 46920, activity: 'อบรมพนักงานเรื่องการประหยัดพลังงาน' },
+  { month: 'ธันวาคม', short: 'ธ.ค.', target: 36700, actual: 47464, activity: 'เปลี่ยนหลอดไฟ LED ในพื้นที่สำนักงาน' },
+  { month: 'มกราคม', short: 'ม.ค.', target: 30000, actual: 33709, activity: 'ติดตั้ง Sensor ตรวจจับการเคลื่อนไหว' },
+  { month: 'กุมภาพันธ์', short: 'ก.พ.', target: 44400, actual: 62174, activity: 'บำรุงรักษาเครื่องจักรหลัก ตรวจสอบ Compressor' },
+  { month: 'มีนาคม', short: 'มี.ค.', target: 52400, actual: 59072, activity: 'รณรงค์ปิดไฟ-เครื่องปรับอากาศพักเที่ยง' },
+  { month: 'เมษายน', short: 'เม.ย.', target: 43900, actual: null, activity: 'วางแผนติดตั้ง Solar Cell บนหลังคาโรงงาน' },
+  { month: 'พฤษภาคม', short: 'พ.ค.', target: 43250, actual: null, activity: '-' },
+  { month: 'มิถุนายน', short: 'มิ.ย.', target: 55000, actual: null, activity: '-' },
+  { month: 'กรกฎาคม', short: 'ก.ค.', target: 64000, actual: null, activity: '-' },
+  { month: 'สิงหาคม', short: 'ส.ค.', target: 60340, actual: null, activity: '-' },
+  { month: 'กันยายน', short: 'ก.ย.', target: 64100, actual: null, activity: '-' },
+];
+
+const UCL = 64100;
+const CL = 50000;
+const LCL = 30000;
+
+function EnergyDashboard() {
+  const [data, setData] = useState(INITIAL_DATA);
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [error, setError] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  const summary = useMemo(() => {
+    const completed = data.filter(d => d.actual !== null);
+    const totalActual = completed.reduce((s, d) => s + (d.actual || 0), 0);
+    const totalTarget = completed.reduce((s, d) => s + d.target, 0);
+    const avgActual = completed.length ? totalActual / completed.length : 0;
+    const overUCL = completed.filter(d => d.actual > UCL * 1.01).length;
+    const underLCL = completed.filter(d => d.actual < LCL * 0.99).length;
+    const variance = totalTarget ? ((totalActual - totalTarget) / totalTarget) * 100 : 0;
+    const yearTarget = 600000;
+    const yearProgress = (totalActual / yearTarget) * 100;
+    return { totalActual, totalTarget, avgActual, overUCL, underLCL, variance, completed: completed.length, yearTarget, yearProgress };
+  }, [data]);
+
+  const convertToCsvUrl = (url) => {
+    if (!url) return null;
+    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (!match) return null;
+    const id = match[1];
+    const gidMatch = url.match(/[#&?]gid=(\d+)/);
+    const gid = gidMatch ? gidMatch[1] : '0';
+    return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+  };
+
+  const connectSheet = async () => {
+    setError('');
+    const csvUrl = convertToCsvUrl(sheetUrl);
+    if (!csvUrl) {
+      setError('URL ไม่ถูกต้อง กรุณาวาง link Google Sheets ที่แชร์เป็น "ทุกคนที่มีลิงก์"');
+      return;
+    }
+    setIsConnecting(true);
+    try {
+      const res = await fetch(csvUrl);
+      if (!res.ok) throw new Error('ไม่สามารถเข้าถึงไฟล์ได้');
+      const text = await res.text();
+      const rows = text.split('\n').map(r => {
+        const result = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < r.length; i++) {
+          const c = r[i];
+          if (c === '"') inQ = !inQ;
+          else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+          else cur += c;
+        }
+        result.push(cur.trim());
+        return result.map(c => c.replace(/^"|"$/g, ''));
+      });
+      
+      const newData = JSON.parse(JSON.stringify(INITIAL_DATA));
+      // reset actuals
+      newData.forEach(d => { d.actual = null; });
+      
+      rows.forEach(row => {
+        if (row.length < 2) return;
+        const monthName = row[0];
+        const idx = THAI_MONTHS.findIndex(m => monthName && monthName.includes(m));
+        if (idx === -1) return;
+        const target = parseFloat((row[1] || '').replace(/,/g, '')) || newData[idx].target;
+        const actualStr = (row[2] || '').replace(/,/g, '').trim();
+        const actual = actualStr === '' ? null : parseFloat(actualStr);
+        const activity = row[3] || newData[idx].activity;
+        newData[idx] = { 
+          ...newData[idx], 
+          target, 
+          actual: (actual === null || isNaN(actual)) ? null : actual, 
+          activity: activity || newData[idx].activity 
+        };
+      });
+      setData(newData);
+      setIsConnected(true);
+      setLastUpdate(new Date());
+    } catch (e) {
+      setError('เชื่อมต่อไม่สำเร็จ: ตรวจสอบว่าตั้งค่าแชร์เป็น "ทุกคนที่มีลิงก์สามารถดูได้"');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!autoRefresh || !isConnected) return;
+    const id = setInterval(() => connectSheet(), 60000);
+    return () => clearInterval(id);
+  }, [autoRefresh, isConnected, sheetUrl]);
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{
+        background: '#0a0e1a', border: '1px solid #00d9ff', padding: '12px 16px',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: '#e2e8f0',
+        boxShadow: '0 0 20px rgba(0, 217, 255, 0.3)'
+      }}>
+        <div style={{ color: '#00d9ff', fontWeight: 700, marginBottom: 6, letterSpacing: '0.05em' }}>{label}</div>
+        {payload.map((p, i) => p.value !== null && (
+          <div key={i} style={{ color: p.color, marginTop: 2 }}>
+            ▸ {p.name}: <strong>{p.value?.toLocaleString()}</strong> kWh
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const getStatus = (actual) => {
+    if (actual === null) return { color: '#475569', label: 'รอข้อมูล', bg: 'rgba(71, 85, 105, 0.15)' };
+    if (actual > UCL * 1.01) return { color: '#ef4444', label: 'เกิน UCL', bg: 'rgba(239, 68, 68, 0.15)' };
+    if (actual < LCL * 0.99) return { color: '#3b82f6', label: 'ต่ำกว่า LCL', bg: 'rgba(59, 130, 246, 0.15)' };
+    return { color: '#10b981', label: 'อยู่ในเกณฑ์', bg: 'rgba(16, 185, 129, 0.15)' };
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'radial-gradient(ellipse at top, #1a2332 0%, #0a0e1a 50%, #050810 100%)',
+      color: '#e2e8f0',
+      fontFamily: 'IBM Plex Sans Thai, sans-serif',
+      padding: '24px',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'linear-gradient(rgba(0,217,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,217,255,0.04) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+        pointerEvents: 'none'
+      }} />
+
+      <div style={{ maxWidth: '1600px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        
+        {/* HEADER */}
+        <header style={{
+          borderBottom: '1px solid rgba(0, 217, 255, 0.2)',
+          paddingBottom: '20px', marginBottom: '24px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          flexWrap: 'wrap', gap: '16px'
+        }}>
+          <div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '11px',
+              color: '#00d9ff', letterSpacing: '0.2em', marginBottom: '8px'
+            }}>
+              <span style={{ width: 8, height: 8, background: '#10b981', borderRadius: '50%', boxShadow: '0 0 10px #10b981', animation: 'pulse 2s infinite' }} />
+              SYSTEM ONLINE · ENERGY MONITORING UNIT
+            </div>
+            <h1 style={{
+              fontFamily: 'Bebas Neue, sans-serif',
+              fontSize: 'clamp(32px, 5vw, 52px)',
+              letterSpacing: '0.05em', margin: 0, lineHeight: 1,
+              background: 'linear-gradient(135deg, #ffffff 0%, #00d9ff 100%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'
+            }}>
+              ENERGY CONSUMPTION DASHBOARD
+            </h1>
+            <div style={{ fontSize: '14px', color: '#94a3b8', marginTop: '4px', fontWeight: 300 }}>
+              ปริมาณการใช้พลังงาน · ปีงบประมาณ <span style={{ color: '#00d9ff', fontWeight: 600 }}>2569</span> · เป้าหมายลด <span style={{ color: '#fbbf24', fontWeight: 600 }}>15%</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
+            <div style={{ color: '#64748b' }}>LAST SYNC</div>
+            <div style={{ color: '#e2e8f0', fontSize: '13px' }}>{lastUpdate.toLocaleString('th-TH')}</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <span style={{
+                padding: '3px 10px',
+                background: isConnected ? 'rgba(16,185,129,0.15)' : 'rgba(100,116,139,0.15)',
+                color: isConnected ? '#10b981' : '#64748b',
+                border: `1px solid ${isConnected ? '#10b981' : '#475569'}`,
+                fontSize: '10px', letterSpacing: '0.1em'
+              }}>
+                {isConnected ? '● LIVE' : '○ OFFLINE'}
+              </span>
+              {autoRefresh && isConnected && (
+                <span style={{ padding: '3px 10px', background: 'rgba(0,217,255,0.15)', color: '#00d9ff', border: '1px solid #00d9ff', fontSize: '10px', letterSpacing: '0.1em' }}>
+                  AUTO 60s
+                </span>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* CONNECTOR */}
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.6)',
+          border: '1px solid rgba(0, 217, 255, 0.2)',
+          padding: '20px', marginBottom: '24px', backdropFilter: 'blur(10px)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+            <IconLink size={18} color="#00d9ff" />
+            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', color: '#e2e8f0' }}>
+              GOOGLE SHEETS REAL-TIME CONNECTION
+            </h3>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'stretch' }}>
+            <input type="text" placeholder="วาง URL ของ Google Sheets ที่แชร์แบบ 'ทุกคนที่มีลิงก์สามารถดูได้'"
+              value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)}
+              style={{
+                flex: '1 1 400px', minWidth: '300px',
+                background: 'rgba(0,0,0,0.4)', border: '1px solid #334155', color: '#e2e8f0',
+                padding: '10px 14px', fontSize: '13px',
+                fontFamily: 'JetBrains Mono, monospace', outline: 'none'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#00d9ff'}
+              onBlur={(e) => e.target.style.borderColor = '#334155'} />
+            <button onClick={connectSheet} disabled={isConnecting || !sheetUrl}
+              style={{
+                background: isConnecting ? '#475569' : 'linear-gradient(135deg, #00d9ff, #0099cc)',
+                color: '#0a0e1a', border: 'none', padding: '10px 24px',
+                fontSize: '13px', fontWeight: 700, letterSpacing: '0.1em',
+                cursor: isConnecting ? 'wait' : 'pointer',
+                fontFamily: 'JetBrains Mono, monospace',
+                display: 'flex', alignItems: 'center', gap: '8px',
+                opacity: !sheetUrl ? 0.5 : 1, transition: 'all 0.2s'
+              }}>
+              <IconRefresh size={14} color="#0a0e1a" />
+              <span style={{ animation: isConnecting ? 'spin 1s linear infinite' : 'none' }}>
+                {isConnecting ? 'SYNCING...' : 'SYNC DATA'}
+              </span>
+            </button>
+            <button onClick={() => setAutoRefresh(!autoRefresh)} disabled={!isConnected}
+              style={{
+                background: autoRefresh ? 'rgba(0, 217, 255, 0.15)' : 'transparent',
+                color: autoRefresh ? '#00d9ff' : '#94a3b8',
+                border: `1px solid ${autoRefresh ? '#00d9ff' : '#334155'}`,
+                padding: '10px 18px', fontSize: '12px', fontWeight: 600,
+                letterSpacing: '0.1em', cursor: isConnected ? 'pointer' : 'not-allowed',
+                fontFamily: 'JetBrains Mono, monospace',
+                opacity: !isConnected ? 0.4 : 1
+              }}>
+              AUTO REFRESH {autoRefresh ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          {error && (
+            <div style={{
+              marginTop: '10px', padding: '10px 14px',
+              background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444',
+              color: '#fca5a5', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px'
+            }}>
+              <IconAlertTriangle size={14} color="#fca5a5" /> {error}
+            </div>
+          )}
+          {!error && (
+            <div style={{ marginTop: '10px', fontSize: '11px', color: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}>
+              ▸ รูปแบบคอลัมน์ที่รองรับ: <span style={{ color: '#94a3b8' }}>เดือน | เป้าหมาย | ปริมาณจริง | กิจกรรม</span>
+            </div>
+          )}
+        </div>
+
+        {/* KPI CARDS */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '16px', marginBottom: '24px'
+        }}>
+          {[
+            { Icon: IconZap, label: 'ปริมาณรวมสะสม', value: summary.totalActual.toLocaleString(), unit: 'kWh', color: '#00d9ff', sub: `${summary.completed}/12 เดือน` },
+            { Icon: IconTarget, label: 'เป้าหมายทั้งปี', value: summary.yearTarget.toLocaleString(), unit: 'kWh', color: '#fbbf24', sub: `ทำได้ ${summary.yearProgress.toFixed(1)}%` },
+            { Icon: summary.variance > 0 ? IconTrendingUp : IconTrendingDown, label: 'ส่วนต่างจากเป้า', value: `${summary.variance > 0 ? '+' : ''}${summary.variance.toFixed(1)}`, unit: '%', color: summary.variance > 0 ? '#ef4444' : '#10b981', sub: summary.variance > 0 ? 'เกินเป้าหมาย' : 'ต่ำกว่าเป้าหมาย' },
+            { Icon: IconAlertTriangle, label: 'จุดผิดปกติ', value: summary.overUCL + summary.underLCL, unit: 'จุด', color: '#f97316', sub: `เกิน UCL ${summary.overUCL} · ต่ำ LCL ${summary.underLCL}` },
+          ].map((kpi, i) => {
+            const I = kpi.Icon;
+            return (
+              <div key={i} style={{
+                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.4) 100%)',
+                border: `1px solid ${kpi.color}30`,
+                padding: '20px', position: 'relative', overflow: 'hidden'
+              }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: kpi.color, boxShadow: `0 0 10px ${kpi.color}` }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {kpi.label}
+                  </div>
+                  <I size={18} color={kpi.color} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '6px' }}>
+                  <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: '36px', color: kpi.color, lineHeight: 1, letterSpacing: '0.02em' }}>
+                    {kpi.value}
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'JetBrains Mono, monospace' }}>{kpi.unit}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}>
+                  {kpi.sub}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* CONTROL CHART */}
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.6)',
+          border: '1px solid rgba(0, 217, 255, 0.2)',
+          padding: '24px', marginBottom: '24px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: '#00d9ff', letterSpacing: '0.2em', marginBottom: '4px' }}>
+                CHART · 01
+              </div>
+              <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: '28px', letterSpacing: '0.05em', color: '#e2e8f0' }}>
+                CONTROL CHART · UCL / CL / LCL
+              </h2>
+            </div>
+            <div style={{ display: 'flex', gap: '16px', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: 16, height: 2, background: '#ef4444' }} /> UCL {UCL.toLocaleString()}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: 16, height: 2, background: '#fbbf24' }} /> CL {CL.toLocaleString()}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: 16, height: 2, background: '#3b82f6' }} /> LCL {LCL.toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <ResponsiveContainer width="100%" height={400}>
+            <ComposedChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="2 4" stroke="#1e293b" />
+              <XAxis dataKey="short" stroke="#64748b" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
+                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} domain={[20000, 70000]} />
+              <Tooltip content={<CustomTooltip />} />
+              <ReferenceLine y={UCL} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={2}
+                label={{ value: 'UCL', position: 'right', fill: '#ef4444', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} />
+              <ReferenceLine y={CL} stroke="#fbbf24" strokeDasharray="6 3" strokeWidth={2}
+                label={{ value: 'CL', position: 'right', fill: '#fbbf24', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} />
+              <ReferenceLine y={LCL} stroke="#3b82f6" strokeDasharray="6 3" strokeWidth={2}
+                label={{ value: 'LCL', position: 'right', fill: '#3b82f6', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} />
+              <Line type="monotone" dataKey="actual" name="ปริมาณการใช้จริง"
+                stroke="#00d9ff" strokeWidth={2.5}
+                dot={(props) => {
+                  const { cx, cy, payload, key } = props;
+                  if (payload.actual === null) return null;
+                  let color = '#10b981';
+                  if (payload.actual > UCL * 1.01) color = '#ef4444';
+                  else if (payload.actual < LCL * 0.99) color = '#3b82f6';
+                  return (
+                    <g key={key}>
+                      <circle cx={cx} cy={cy} r={7} fill={color} fillOpacity={0.3} />
+                      <circle cx={cx} cy={cy} r={4} fill={color} stroke="#0a0e1a" strokeWidth={2} />
+                    </g>
+                  );
+                }}
+                activeDot={{ r: 8, fill: '#00d9ff', stroke: '#0a0e1a', strokeWidth: 2 }}
+                connectNulls={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* BAR CHART */}
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.6)',
+          border: '1px solid rgba(0, 217, 255, 0.2)',
+          padding: '24px', marginBottom: '24px'
+        }}>
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: '#00d9ff', letterSpacing: '0.2em', marginBottom: '4px' }}>
+              CHART · 02
+            </div>
+            <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: '28px', letterSpacing: '0.05em', color: '#e2e8f0' }}>
+              TARGET VS ACTUAL · เป้าหมาย vs ใช้จริง
+            </h2>
+          </div>
+          <ResponsiveContainer width="100%" height={350}>
+            <ComposedChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+              <defs>
+                <linearGradient id="actualBar" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#00d9ff" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0099cc" stopOpacity={0.6} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="2 4" stroke="#1e293b" vertical={false} />
+              <XAxis dataKey="short" stroke="#64748b" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
+                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,217,255,0.05)' }} />
+              <Legend wrapperStyle={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', paddingTop: '10px' }} />
+              <Bar dataKey="actual" name="ปริมาณจริง" fill="url(#actualBar)">
+                {data.map((entry, idx) => (
+                  <Cell key={idx} fill={
+                    entry.actual === null ? 'transparent' :
+                    entry.actual > UCL * 1.01 ? '#ef4444' :
+                    entry.actual < LCL * 0.99 ? '#3b82f6' : 'url(#actualBar)'
+                  } />
+                ))}
+              </Bar>
+              <Line type="monotone" dataKey="target" name="เป้าหมาย"
+                stroke="#fbbf24" strokeWidth={2.5}
+                dot={{ r: 5, fill: '#fbbf24', stroke: '#0a0e1a', strokeWidth: 2 }}
+                activeDot={{ r: 7, fill: '#fbbf24', stroke: '#0a0e1a', strokeWidth: 2 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* TABLE */}
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.6)',
+          border: '1px solid rgba(0, 217, 255, 0.2)',
+          padding: '24px', marginBottom: '24px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+            <IconCalendar size={20} color="#00d9ff" />
+            <div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: '#00d9ff', letterSpacing: '0.2em', marginBottom: '4px' }}>
+                LOG · 03
+              </div>
+              <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: '28px', letterSpacing: '0.05em', color: '#e2e8f0' }}>
+                MONTHLY ACTIVITIES · กิจกรรมประจำเดือน
+              </h2>
+            </div>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '800px' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid rgba(0, 217, 255, 0.3)' }}>
+                  {['เดือน', 'เป้าหมาย (kWh)', 'ใช้จริง (kWh)', 'ส่วนต่าง', 'สถานะ', 'กิจกรรมการดำเนินงาน'].map((h, i) => (
+                    <th key={i} style={{
+                      padding: '12px 14px', textAlign: 'left',
+                      fontFamily: 'JetBrains Mono, monospace', fontSize: '10px',
+                      color: '#00d9ff', letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600
+                    }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((d, i) => {
+                  const status = getStatus(d.actual);
+                  const diff = d.actual !== null ? d.actual - d.target : null;
+                  const diffPct = d.actual !== null ? ((diff / d.target) * 100) : null;
+                  return (
+                    <tr key={i} style={{
+                      borderBottom: '1px solid rgba(30, 41, 59, 0.6)',
+                      background: i % 2 === 0 ? 'rgba(15, 23, 42, 0.3)' : 'transparent'
+                    }}>
+                      <td style={{ padding: '12px 14px', color: '#e2e8f0', fontWeight: 500 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: '#64748b' }}>{String(i+1).padStart(2,'0')}</span>
+                          {d.month}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontFamily: 'JetBrains Mono, monospace', color: '#fbbf24' }}>
+                        {d.target.toLocaleString()}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontFamily: 'JetBrains Mono, monospace', color: d.actual !== null ? '#00d9ff' : '#475569', fontWeight: 600 }}>
+                        {d.actual !== null ? d.actual.toLocaleString() : '—'}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
+                        {diff !== null ? (
+                          <span style={{ color: diff > 0 ? '#ef4444' : '#10b981' }}>
+                            {diff > 0 ? '▲' : '▼'} {Math.abs(diff).toLocaleString()} ({diffPct > 0 ? '+' : ''}{diffPct.toFixed(1)}%)
+                          </span>
+                        ) : <span style={{ color: '#475569' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{
+                          padding: '4px 10px',
+                          background: status.bg, color: status.color,
+                          border: `1px solid ${status.color}40`,
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontSize: '10px', letterSpacing: '0.1em', fontWeight: 600
+                        }}>
+                          {status.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px', color: '#94a3b8', fontSize: '12.5px' }}>
+                        {d.activity === '-' ? <span style={{ color: '#475569' }}>ยังไม่ได้กำหนด</span> : (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                            {d.actual !== null && <IconCheck size={13} color="#10b981" />}
+                            <span>{d.activity}</span>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid rgba(0, 217, 255, 0.3)' }}>
+                  <td style={{ padding: '14px', fontFamily: 'Bebas Neue, sans-serif', fontSize: '18px', letterSpacing: '0.05em', color: '#e2e8f0' }}>TOTAL</td>
+                  <td style={{ padding: '14px', fontFamily: 'JetBrains Mono, monospace', color: '#fbbf24', fontWeight: 700 }}>
+                    {data.reduce((s, d) => s + d.target, 0).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '14px', fontFamily: 'JetBrains Mono, monospace', color: '#00d9ff', fontWeight: 700 }}>
+                    {summary.totalActual.toLocaleString()}
+                  </td>
+                  <td colSpan={3} style={{ padding: '14px', fontSize: '11px', color: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}>
+                    เฉลี่ย/เดือน: {summary.avgActual.toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <footer style={{
+          marginTop: '24px', paddingTop: '20px',
+          borderTop: '1px solid rgba(0, 217, 255, 0.15)',
+          display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: '10px',
+          color: '#475569', letterSpacing: '0.1em'
+        }}>
+          <div>● ENERGY MONITORING SYSTEM v2.0 · FY 2569</div>
+          <div>UCL: {UCL.toLocaleString()} · CL: {CL.toLocaleString()} · LCL: {LCL.toLocaleString()} kWh</div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<EnergyDashboard />);
+</script>
+</body>
+</html>
