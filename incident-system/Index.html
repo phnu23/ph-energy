@@ -605,6 +605,8 @@ textarea{min-height:92px;resize:vertical}
 .hc-ex{background:var(--surface);border-radius:8px}
 .hc-calc{margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:9px;background:var(--surface)}
 .hc-in-s{width:70px}.hc-in-t{width:190px;text-align:left}
+.hc-in[readonly]{background:var(--line-2);color:var(--steel)}
+.hc-how{padding:4px 9px;font-size:11.5px;white-space:nowrap}.hc-x{padding:3px 9px}
 .hc-calc-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .hc-bar{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-top:12px;
  font-size:12.5px;color:var(--saed)}
@@ -1732,40 +1734,60 @@ function hcSaveAll(){
   const d=ORG_HC_DIRTY[k];
   return {faculty:d.faculty,orgUnit:d.orgUnit,
           headcount:d.headcount===undefined?undefined:(d.headcount===""?0:d.headcount),
-          hoursPerYear:d.hoursPerYear===undefined?undefined:(d.hoursPerYear===""?0:d.hoursPerYear)};
+          hoursPerYear:d.hoursPerYear===undefined?undefined:(d.hoursPerYear===""?0:d.hoursPerYear),
+          staffGroups:d.staffGroups};
  }).map(r=>{
   /* ส่งเฉพาะ field ที่ผู้ใช้แตะจริง ค่าที่ไม่ได้แตะต้องคงของเดิมไว้ ไม่ใช่ถูกเขียนทับด้วย 0 */
   const cur=((ORG_HC&&ORG_HC.rows)||[]).filter(x=>hcKey(x.faculty,x.orgUnit)===hcKey(r.faculty,r.orgUnit))[0]||{};
   return {faculty:r.faculty,orgUnit:r.orgUnit,
           headcount:r.headcount===undefined?(Number(cur.headcount)||0):r.headcount,
           hoursPerYear:r.hoursPerYear===undefined?(Number(cur.hoursPerYear)||0):r.hoursPerYear,
-          effectiveYear:String(cur.effectiveYear||"")};
+          effectiveYear:String(cur.effectiveYear||""),
+          /* ส่งเฉพาะเมื่อแก้วิธีคิด ไม่ส่ง = เซิร์ฟเวอร์คงวิธีคิดเดิมไว้ */
+          ...(r.staffGroups!==undefined?{staffGroups:r.staffGroups}:{})};
  });
  if(!rows.length){toast("ยังไม่มีการแก้ไข");return}
  if(BUSY)return;
  busy(true,"กำลังบันทึกทะเบียนจำนวนบุคลากร…");
  srv("orgHeadcountSave",[rows],function(d){
-  BUSY=false;ORG_HC=d.list;ORG_HC_DIRTY={};ORG_HC_STATE="ready";
+  BUSY=false;ORG_HC=d.list;ORG_HC_DIRTY={};ORG_HC_STATE="ready";HC_CALC=null;
   FIX=null;FIX_STATE="idle";   /* ตัวหารเปลี่ยน กราฟเปรียบเทียบรายคณะต้องโหลดใหม่ */
   toast("บันทึกแล้ว · เพิ่ม "+d.added+" · แก้ไข "+d.changed+" หน่วยงาน");
   rerenderReport();
  },function(){BUSY=false});
 }
-/* ---- วิธีคำนวณชั่วโมงการทำงาน และตัวช่วยคำนวณสำหรับหน่วยงานที่มีบุคลากรหลายแบบ (รุ่น 2.8.2) ----
-   ทะเบียนเก็บ "จำนวนคน" กับ "ชั่วโมง/คน/ปี" ของหน่วยงาน ถ้าในหน่วยงานมีคนทำงานหลายรูปแบบ
-   ให้ใช้ค่าเฉลี่ยถ่วงน้ำหนัก = ชั่วโมงรวมทุกกลุ่ม ÷ จำนวนคนทั้งหมด ผลคูณกลับจึงได้ชั่วโมงรวมเท่าเดิม */
-/* ค่าที่พิมพ์ค้างไว้ยังไม่บันทึกต้องไม่หายเมื่อหน้ารายงานถูกวาดใหม่ (เช่น กดเพิ่มกลุ่มในตัวช่วยคำนวณ) */
+/* ---- วิธีคิดเวลาการทำงานที่แต่ละคณะกรอกเอง (รุ่น 2.8.3) ----
+   แต่ละหน่วยงานบันทึก "กลุ่มบุคลากร" ของตนเอง: จำนวนคน × ชั่วโมง/วัน × วันทำงาน/ปี
+   ค่าถูกเก็บในคอลัมน์ staffGroups ของ OrgHeadcount และเซิร์ฟเวอร์คำนวณจำนวนคนกับชั่วโมงเฉลี่ยให้เอง
+   (Σ คน และ Σ(คน×ชม.×วัน) ÷ Σ คน) ตัวเลขในทะเบียนจึงตรงกับวิธีคิดที่หน่วยงานกรอกเสมอ
+   หน่วยงานที่ไม่กรอกกลุ่ม ยังกรอกจำนวนคนและชั่วโมง/คน/ปี เป็นตัวเลขตรง ๆ ได้เหมือนเดิม */
+/* ค่าที่พิมพ์ค้างไว้ยังไม่บันทึกต้องไม่หายเมื่อหน้ารายงานถูกวาดใหม่ (เช่น กดเพิ่มกลุ่มในวิธีคิด) */
 function hcVal(r,k){const d=ORG_HC_DIRTY[hcKey(r.faculty,r.orgUnit)];const v=d&&d[k]!==undefined?d[k]:r[k];return v||""}
-let HC_CALC=null;
-function hcCalcInit(hpd,wdy){if(!HC_CALC)HC_CALC=[
- {t:"บุคลากรเต็มเวลา",n:"",h:hpd,d:wdy},{t:"เข้าเวร/กะ",n:"",h:8,d:250},{t:"พาร์ตไทม์/ลูกจ้างรายชั่วโมง",n:"",h:4,d:wdy}]}
+let HC_CALC=null, HC_CALC_ROW=0, HC_CALC_OPEN=false, HC_BOX_OPEN=false;
+function hcGroupsOf(r){
+ const d=ORG_HC_DIRTY[hcKey(r.faculty,r.orgUnit)];
+ if(d&&d.staffGroups!==undefined)return d.staffGroups;
+ return Array.isArray(r.staffGroups)?r.staffGroups:[];
+}
+function hcGroupsText(gs){return gs.map(g=>`${esc(g.t||"กลุ่ม")} ${g.n} คน × ${g.h} ชม. × ${g.d} วัน`).join(" + ")}
+function hcCalcInit(){
+ if(HC_CALC)return;
+ const r=HC_ROWS[HC_CALC_ROW], hpd=ORG_HC.hoursPerDay||7, wdy=ORG_HC.workDaysPerYear||240;
+ const saved=r?hcGroupsOf(r):[];
+ HC_CALC=saved.length?saved.map(g=>({t:g.t,n:g.n,h:g.h,d:g.d}))
+  :[{t:"บุคลากรเต็มเวลา",n:r&&r.headcount&&!(r.hoursPerYear>0)?r.headcount:"",h:hpd,d:wdy},{t:"เข้าเวร/กะ",n:"",h:8,d:250},{t:"พาร์ตไทม์/ลูกจ้างรายชั่วโมง",n:"",h:4,d:wdy}];
+}
 function hcCalcResult(){
- const g=(HC_CALC||[]).map(x=>({n:Math.max(0,Number(x.n)||0),h:Math.max(0,Number(x.h)||0),d:Math.max(0,Number(x.d)||0)}));
- const people=g.reduce((a,x)=>a+x.n,0), hours=g.reduce((a,x)=>a+x.n*x.h*x.d,0);
- return {people:people,hours:hours,avg:people?Math.round(hours/people):0,g:g};
+ const g=(HC_CALC||[]).map(x=>({t:String(x.t||"").trim(),n:Math.max(0,Math.floor(Number(x.n)||0)),h:Math.max(0,Number(x.h)||0),d:Math.max(0,Math.floor(Number(x.d)||0))}));
+ const use=g.filter(x=>x.n>0);
+ const people=use.reduce((a,x)=>a+x.n,0), hours=use.reduce((a,x)=>a+x.n*x.h*x.d,0);
+ return {people:people,hours:hours,avg:people?Math.round(hours/people):0,g:g,use:use};
 }
 function hcCalcSet(i,k,v){if(!HC_CALC[i])return;HC_CALC[i][k]=v;hcCalcPaint()}
-function hcCalcAdd(){HC_CALC.push({t:"กลุ่มอื่น",n:"",h:7,d:240});rerenderReport()}
+function hcCalcAdd(){HC_CALC.push({t:"กลุ่มอื่น",n:"",h:ORG_HC.hoursPerDay||7,d:ORG_HC.workDaysPerYear||240});HC_CALC_OPEN=true;rerenderReport()}
+function hcCalcDel(i){HC_CALC.splice(i,1);HC_CALC_OPEN=true;rerenderReport()}
+function hcCalcPick(i){HC_CALC_ROW=Number(i)||0;HC_CALC=null;HC_CALC_OPEN=true;rerenderReport();
+ setTimeout(function(){const b=document.getElementById("hcCalcBox");if(b)b.scrollIntoView({block:"nearest"})},0)}
 function hcCalcPaint(){
  const r=hcCalcResult(), f=n=>Math.round(n).toLocaleString("en-US");
  r.g.forEach((x,i)=>{const e=document.getElementById("hcCs"+i);if(e)e.textContent=x.n?f(x.n*x.h*x.d):"—"});
@@ -1773,82 +1795,120 @@ function hcCalcPaint(){
  if(o)o.innerHTML=r.people?`รวม <b>${f(r.people)} คน</b> · ชั่วโมงรวม <b>${f(r.hours)}</b> ชม./ปี
    → ชั่วโมงเฉลี่ย <b>${f(r.hours)} ÷ ${f(r.people)} = ${f(r.avg)}</b> ชม./คน/ปี`:"กรอกจำนวนคนอย่างน้อยหนึ่งกลุ่ม";
 }
+/* ใช้วิธีคิดกับแถวที่เลือก — เก็บไว้ใน ORG_HC_DIRTY แล้วส่งพร้อมปุ่ม "บันทึกทะเบียน" ครั้งเดียว */
 function hcCalcApply(){
- const r=hcCalcResult(), sel=document.getElementById("hcCalcRow"), i=sel?Number(sel.value):0;
- if(!r.people){toast("กรอกจำนวนคนในตัวช่วยคำนวณก่อน");return}
+ const r=hcCalcResult(), i=HC_CALC_ROW, row=HC_ROWS[i];
+ if(!row)return;
+ if(!r.people){toast("กรอกจำนวนคนอย่างน้อยหนึ่งกลุ่ม");return}
+ if(r.use.some(x=>!(x.h>0&&x.h<=24))){toast("ชั่วโมง/วัน ต้องอยู่ระหว่าง 0–24");return}
+ if(r.use.some(x=>!(x.d>0&&x.d<=365))){toast("วันทำงาน/ปี ต้องอยู่ระหว่าง 1–365");return}
  if(r.avg<100){toast("ชั่วโมงเฉลี่ยต่ำกว่า 100 ชม./คน/ปี ระบบจะไม่รับค่า กรุณาตรวจสอบ");return}
- const h=document.getElementById("hcH"+i), p=document.getElementById("hcP"+i);
- if(h)h.value=r.people; if(p)p.value=r.avg;
- hcSet(i,"headcount",String(r.people)); hcSet(i,"hoursPerYear",String(r.avg));
- toast("ใส่ค่าแล้ว กด \"บันทึกทะเบียน\" เพื่อบันทึก");
+ const k=hcKey(row.faculty,row.orgUnit);
+ if(!ORG_HC_DIRTY[k])ORG_HC_DIRTY[k]={faculty:row.faculty,orgUnit:row.orgUnit||""};
+ ORG_HC_DIRTY[k].staffGroups=r.use.map((x,j)=>({t:x.t||("กลุ่มที่ "+(j+1)),n:x.n,h:x.h,d:x.d}));
+ ORG_HC_DIRTY[k].headcount=r.people; ORG_HC_DIRTY[k].hoursPerYear=r.avg;
+ HC_CALC_OPEN=true; rerenderReport();
+ toast("ใส่วิธีคิดแล้ว กด \"บันทึกทะเบียน\" เพื่อบันทึก");
 }
-function hcHelp(def,hpd,wdy,rows){
- hcCalcInit(hpd,wdy);
+function hcCalcClear(){
+ const row=HC_ROWS[HC_CALC_ROW]; if(!row)return;
+ const k=hcKey(row.faculty,row.orgUnit);
+ if(!ORG_HC_DIRTY[k])ORG_HC_DIRTY[k]={faculty:row.faculty,orgUnit:row.orgUnit||""};
+ ORG_HC_DIRTY[k].staffGroups=[]; HC_CALC=null; HC_CALC_OPEN=true; rerenderReport();
+ toast("ล้างวิธีคิดแล้ว กรอกจำนวนคนและชั่วโมง/คน/ปี ในตารางได้เอง แล้วกด \"บันทึกทะเบียน\"");
+}
+function hcHelp(def,hpd,wdy){
  const f=n=>Math.round(n).toLocaleString("en-US");
- const ex=[["บุคลากรสายวิชาการ/สายสนับสนุน เต็มเวลา",hpd,wdy,"เว้นว่างได้ ใช้ค่ามาตรฐาน"],
-  ["พยาบาล/เจ้าหน้าที่เข้าเวร (กะละ 8 ชม.)",8,250,"กรอกเองถ้าเป็นกลุ่มหลักของหน่วยงาน"],
-  ["ลูกจ้างครึ่งวัน/พาร์ตไทม์",4,wdy,""],
-  ["ผู้ช่วยวิจัย/นิสิตช่วยงาน (3 วัน/สัปดาห์ × 40 สัปดาห์)",4,120,""]];
+ const ex=[["บุคลากรสายวิชาการ/สายสนับสนุน เต็มเวลา",hpd,wdy],["พยาบาล/เจ้าหน้าที่เข้าเวร (กะละ 8 ชม.)",8,250],
+  ["ลูกจ้างครึ่งวัน/พาร์ตไทม์",4,wdy],["ผู้ช่วยวิจัย/นิสิตช่วยงาน (3 วัน/สัปดาห์ × 40 สัปดาห์)",4,120]];
  const mix=[[40,hpd,wdy],[10,8,250],[6,4,wdy]];
  const mixP=mix.reduce((a,x)=>a+x[0],0), mixH=mix.reduce((a,x)=>a+x[0]*x[1]*x[2],0);
- const R=hcCalcResult();
- return `<details class="hc-help"><summary>วิธีคำนวณชั่วโมงการทำงาน และตัวอย่างสำหรับบุคลากรหลายรูปแบบ</summary>
+ return `<details class="hc-help"><summary>วิธีคำนวณชั่วโมงการทำงาน และตัวอย่าง</summary>
   <div class="hc-help-b">
    <p><b>สูตร</b> ชั่วโมง/คน/ปี = ชั่วโมงทำงานต่อวัน × จำนวนวันทำงานต่อปี · ค่ามาตรฐานของระบบ = ${hpd} × ${wdy} = <b>${f(def)}</b> ชม./คน/ปี
-    <br>ชั่วโมงรวมของหน่วยงาน/ปี = จำนวนบุคลากร × ชั่วโมง/คน/ปี · ดัชนีของช่วงเวลาใดใช้ชั่วโมงตามสัดส่วนเดือน (1 เดือน = ÷ 12)</p>
-   <div class="tbl-wrap"><table class="hc-tbl hc-ex"><thead><tr><th>ตัวอย่างกลุ่มบุคลากร</th><th class="r">ชม./วัน</th><th class="r">วัน/ปี</th><th class="r">ชม./คน/ปี</th><th></th></tr></thead><tbody>
-    ${ex.map(x=>`<tr><td>${x[0]}</td><td class="r mono">${x[1]}</td><td class="r mono">${x[2]}</td><td class="r mono"><b>${f(x[1]*x[2])}</b></td><td style="color:var(--steel);font-size:11.5px">${x[3]}</td></tr>`).join("")}
+    (ใช้เมื่อหน่วยงานไม่ได้กรอกเอง) · ชั่วโมงรวมของหน่วยงาน/ปี = จำนวนบุคลากร × ชั่วโมง/คน/ปี · ดัชนีรายเดือนใช้ ÷ 12</p>
+   <div class="tbl-wrap"><table class="hc-tbl hc-ex"><thead><tr><th>ตัวอย่างกลุ่มบุคลากร</th><th class="r">ชม./วัน</th><th class="r">วัน/ปี</th><th class="r">ชม./คน/ปี</th></tr></thead><tbody>
+    ${ex.map(x=>`<tr><td>${x[0]}</td><td class="r mono">${x[1]}</td><td class="r mono">${x[2]}</td><td class="r mono"><b>${f(x[1]*x[2])}</b></td></tr>`).join("")}
    </tbody></table></div>
-   <p style="margin-top:10px"><b>หน่วยงานที่มีบุคลากรหลายรูปแบบ</b> ให้กรอก <b>จำนวนคนทั้งหมด</b> และ <b>ชั่วโมงเฉลี่ยถ่วงน้ำหนัก</b> เช่น<br>
+   <p style="margin-top:10px"><b>หน่วยงานที่มีบุคลากรหลายรูปแบบ</b> กรอกเป็นกลุ่มใน "วิธีคิดเวลาการทำงานของหน่วยงาน" ด้านล่าง ระบบคำนวณให้ เช่น<br>
     ${mix.map(x=>`${x[0]} คน × ${x[1]} ชม. × ${x[2]} วัน = ${f(x[0]*x[1]*x[2])}`).join("<br>")}<br>
-    รวม ${mixP} คน · ${f(mixH)} ชม./ปี → ชั่วโมงเฉลี่ย ${f(mixH)} ÷ ${mixP} = <b>${f(Math.round(mixH/mixP))}</b> ชม./คน/ปี
-    → กรอก บุคลากร <b>${mixP}</b> คน และชั่วโมง/คน/ปี <b>${f(Math.round(mixH/mixP))}</b>
-    <br><span style="color:var(--steel)">หรือแยกกรอกเป็นแถวหน่วยงานย่อยตามกลุ่มก็ได้ (ห้ามกรอกทั้งแถว "ทั้งหน่วยงาน" และแถวหน่วยงานย่อยของคณะเดียวกันพร้อมกัน)</span></p>
-   <div class="hc-calc"><b>ตัวช่วยคำนวณ</b>
-    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>กลุ่มบุคลากร</th><th class="r">จำนวนคน</th><th class="r">ชม./วัน</th><th class="r">วัน/ปี</th><th class="r">ชั่วโมงรวม/ปี</th></tr></thead><tbody>
-    ${HC_CALC.map((x,i)=>`<tr><td><input class="hc-in hc-in-t" value="${esc(x.t)}" aria-label="ชื่อกลุ่ม" oninput="hcCalcSet(${i},'t',this.value)"></td>
-      <td class="r"><input class="hc-in" type="number" min="0" step="1" value="${esc(String(x.n))}" placeholder="0" aria-label="จำนวนคน" oninput="hcCalcSet(${i},'n',this.value)"></td>
-      <td class="r"><input class="hc-in hc-in-s" type="number" min="0" max="24" step="0.5" value="${esc(String(x.h))}" aria-label="ชั่วโมงต่อวัน" oninput="hcCalcSet(${i},'h',this.value)"></td>
-      <td class="r"><input class="hc-in hc-in-s" type="number" min="0" max="366" step="1" value="${esc(String(x.d))}" aria-label="วันต่อปี" oninput="hcCalcSet(${i},'d',this.value)"></td>
-      <td class="r mono" id="hcCs${i}">${R.g[i]&&R.g[i].n?f(R.g[i].n*R.g[i].h*R.g[i].d):"—"}</td></tr>`).join("")}
-    </tbody></table></div>
-    <div class="hc-calc-bar"><button class="btn" onclick="hcCalcAdd()">+ เพิ่มกลุ่ม</button>
-     <span id="hcCalcOut" style="flex:1">${R.people?`รวม <b>${f(R.people)} คน</b> · ชั่วโมงรวม <b>${f(R.hours)}</b> ชม./ปี → ชั่วโมงเฉลี่ย <b>${f(R.hours)} ÷ ${f(R.people)} = ${f(R.avg)}</b> ชม./คน/ปี`:"กรอกจำนวนคนอย่างน้อยหนึ่งกลุ่ม"}</span>
-     <select id="hcCalcRow" class="fx-sel" aria-label="แถวที่จะใส่ค่า">${rows.map((r,i)=>`<option value="${i}">${esc(r.faculty)}${r.orgUnit?" · "+esc(r.orgUnit):""}</option>`).join("")}</select>
-     <button class="btn btn-p" onclick="hcCalcApply()">ใส่ค่าลงทะเบียน</button></div>
-   </div>
+    รวม ${mixP} คน · ${f(mixH)} ชม./ปี → ชั่วโมงเฉลี่ย ${f(mixH)} ÷ ${mixP} = <b>${f(Math.round(mixH/mixP))}</b> ชม./คน/ปี</p>
   </div></details>`;
+}
+function hcCalcBox(rows){
+ if(!rows.length)return "";
+ if(HC_CALC_ROW>=rows.length)HC_CALC_ROW=0;
+ hcCalcInit();
+ const f=n=>Math.round(n).toLocaleString("en-US"), R=hcCalcResult(), row=rows[HC_CALC_ROW], cur=hcGroupsOf(row);
+ return `<details class="hc-help hc-calc" id="hcCalcBox" ${HC_CALC_OPEN?"open":""} ontoggle="HC_CALC_OPEN=this.open">
+  <summary>วิธีคิดเวลาการทำงานของหน่วยงาน (แต่ละคณะ/กองกรอกเอง)</summary>
+  <div class="hc-help-b">
+   <div class="hc-calc-bar" style="margin:0 0 8px">หน่วยงาน
+    <select class="fx-sel" aria-label="หน่วยงานที่จะกรอกวิธีคิด" onchange="hcCalcPick(this.value)">${rows.map((r,i)=>`<option value="${i}"${i===HC_CALC_ROW?" selected":""}>${esc(r.faculty)}${r.orgUnit?" · "+esc(r.orgUnit):""}${hcGroupsOf(r).length?" ✓":""}</option>`).join("")}</select>
+    <span style="color:var(--steel)">${cur.length?"ใช้วิธีคิดจากกลุ่มบุคลากรอยู่ "+cur.length+" กลุ่ม":"ยังไม่ได้กรอกวิธีคิด (ใช้ตัวเลขในตาราง)"}</span></div>
+   <div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>กลุ่มบุคลากร</th><th class="r">จำนวนคน</th><th class="r">ชม./วัน</th><th class="r">วัน/ปี</th><th class="r">ชั่วโมงรวม/ปี</th><th></th></tr></thead><tbody>
+   ${HC_CALC.map((x,i)=>`<tr><td><input class="hc-in hc-in-t" maxlength="80" value="${esc(String(x.t))}" aria-label="ชื่อกลุ่ม" oninput="hcCalcSet(${i},'t',this.value)"></td>
+     <td class="r"><input class="hc-in" type="number" min="0" step="1" value="${esc(String(x.n))}" placeholder="0" aria-label="จำนวนคน" oninput="hcCalcSet(${i},'n',this.value)"></td>
+     <td class="r"><input class="hc-in hc-in-s" type="number" min="0" max="24" step="0.5" value="${esc(String(x.h))}" aria-label="ชั่วโมงต่อวัน" oninput="hcCalcSet(${i},'h',this.value)"></td>
+     <td class="r"><input class="hc-in hc-in-s" type="number" min="1" max="365" step="1" value="${esc(String(x.d))}" aria-label="วันทำงานต่อปี" oninput="hcCalcSet(${i},'d',this.value)"></td>
+     <td class="r mono" id="hcCs${i}">${R.g[i]&&R.g[i].n?f(R.g[i].n*R.g[i].h*R.g[i].d):"—"}</td>
+     <td><button class="btn hc-x" title="ลบกลุ่มนี้" aria-label="ลบกลุ่มนี้" onclick="hcCalcDel(${i})">×</button></td></tr>`).join("")}
+   </tbody></table></div>
+   <div class="hc-calc-bar"><button class="btn" onclick="hcCalcAdd()">+ เพิ่มกลุ่ม</button>
+    <span id="hcCalcOut" style="flex:1">${R.people?`รวม <b>${f(R.people)} คน</b> · ชั่วโมงรวม <b>${f(R.hours)}</b> ชม./ปี → ชั่วโมงเฉลี่ย <b>${f(R.hours)} ÷ ${f(R.people)} = ${f(R.avg)}</b> ชม./คน/ปี`:"กรอกจำนวนคนอย่างน้อยหนึ่งกลุ่ม"}</span></div>
+   <div class="hc-calc-bar">${cur.length?`<button class="btn" onclick="hcCalcClear()">ล้างวิธีคิด (กรอกตัวเลขเอง)</button>`:""}
+    <div style="flex:1"></div><button class="btn btn-p" onclick="hcCalcApply()">ใช้วิธีคิดนี้กับหน่วยงาน</button></div>
+   <div style="font-size:11.5px;color:var(--steel);margin-top:6px">ระบบคำนวณจำนวนบุคลากรและชั่วโมง/คน/ปี ของหน่วยงานจากกลุ่มเหล่านี้ให้เอง และเก็บวิธีคิดไว้ในฐานข้อมูลกลางให้ผู้บริหารตรวจสอบย้อนหลังได้
+    หลังกด "ใช้วิธีคิดนี้กับหน่วยงาน" ต้องกด "บันทึกทะเบียน" ด้านล่างอีกครั้ง</div>
+  </div></details>`;
+}
+/* ผู้ที่ดูได้แต่แก้ไม่ได้ (เช่น ผู้บริหารมหาวิทยาลัย) เห็นที่มาของชั่วโมงการทำงานแต่ละหน่วยงาน */
+function hcSourcePanel(){
+ if(!ORG_HC||ORG_HC.canEdit)return "";
+ const rows=(ORG_HC.rows||[]).filter(r=>r.headcount>0);
+ if(!rows.length)return "";
+ const def=ORG_HC.defaultHoursPerYear||1680, f=n=>Math.round(n).toLocaleString("en-US");
+ return `<details class="hc-help"><summary>ที่มาของชั่วโมงการทำงานแต่ละหน่วยงาน (${rows.length} หน่วยงาน)</summary>
+  <div class="hc-help-b"><div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>หน่วยงาน</th><th class="r">คน</th><th class="r">ชม./คน/ปี</th><th>วิธีคิด</th></tr></thead><tbody>
+  ${rows.map(r=>{const gs=r.staffGroups||[];return `<tr><td>${esc(r.faculty)}${r.orgUnit?" · "+esc(r.orgUnit):""}</td><td class="r mono">${f(r.headcount)}</td>
+   <td class="r mono">${f(r.hoursPerYear>0?r.hoursPerYear:def)}</td>
+   <td style="font-size:11.5px;color:var(--steel)">${gs.length?hcGroupsText(gs):r.hoursPerYear>0?"หน่วยงานกรอกชั่วโมง/คน/ปี เอง":"ค่ามาตรฐาน "+(ORG_HC.hoursPerDay||7)+" ชม. × "+(ORG_HC.workDaysPerYear||240)+" วัน"}</td></tr>`}).join("")}
+  </tbody></table></div></div></details>`;
 }
 function hcPanel(){
  if(!(ORG_HC&&ORG_HC.canEdit))return "";
  const rows=hcEditRows();
  HC_ROWS=rows;
  const def=(ORG_HC.defaultHoursPerYear||1680), hpd=ORG_HC.hoursPerDay||7, wdy=ORG_HC.workDaysPerYear||240;
- return `<details class="hc-box" ${orgReady()?"":"open"}>
+ return `<details class="hc-box" ${!orgReady()||HC_BOX_OPEN||Object.keys(ORG_HC_DIRTY).length?"open":""} ontoggle="HC_BOX_OPEN=this.open">
   <summary>ทะเบียนจำนวนบุคลากรและชั่วโมงการทำงาน · กรอกแล้ว ${ORG_HC.configured} จาก ${rows.length} หน่วยงาน</summary>
   <div class="hc-body">
    <div class="note" style="margin:0 0 10px;font-size:12.3px">จำนวนบุคลากรนี้เก็บไว้ที่ฐานข้อมูลกลาง ทุกคนที่เปิดรายงานจึงเห็นดัชนีตรงกัน
     ช่องชั่วโมง/คน/ปี เว้นว่างได้ ระบบจะใช้ค่ามาตรฐาน <b>${def.toLocaleString("en-US")} ชั่วโมง (${hpd} ชั่วโมง/วัน × ${wdy} วัน)</b>
     ${ORG_HC.scope==="all"?"กรอกที่ระดับคณะ/หน่วยงาน ห้ามกรอกทั้งระดับคณะและระดับหน่วยงานย่อยของคณะเดียวกันพร้อมกัน เพราะจะนับคนซ้ำ"
       :"แต่ละคณะ/กองกรอกและปรับปรุงจำนวนบุคลากรและชั่วโมงการทำงานของตนเองได้ ท่านแก้ไขได้เฉพาะ <b>"+esc(userFaculty(ME))+"</b>"}</div>
-   ${hcHelp(def,hpd,wdy,rows)}
+   ${hcHelp(def,hpd,wdy)}
+   ${hcCalcBox(rows)}
    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr>
     <th>คณะ/หน่วยงาน</th><th>หน่วยงานย่อย</th><th style="text-align:right">บุคลากร (คน)</th>
-    <th style="text-align:right">ชั่วโมง/คน/ปี</th><th style="text-align:right">รวมชั่วโมง/ปี</th><th>แก้ไขล่าสุด</th></tr></thead><tbody>
-   ${rows.map((r,i)=>`<tr class="${r.headcount>0?"":"hc-empty"}">
+    <th style="text-align:right">ชั่วโมง/คน/ปี</th><th style="text-align:right">รวมชั่วโมง/ปี</th><th>วิธีคิด</th><th>แก้ไขล่าสุด</th></tr></thead><tbody>
+   ${rows.map((r,i)=>{const gs=hcGroupsOf(r), lock=gs.length?' readonly title="คำนวณจากวิธีคิดของหน่วยงาน แก้ที่ปุ่ม &quot;จาก n กลุ่ม&quot;"':"";
+    const hc=Number(hcVal(r,"headcount"))||0, hp=Number(hcVal(r,"hoursPerYear"))||0;
+    return `<tr class="${r.headcount>0?"":"hc-empty"}">
     <td>${esc(r.faculty)}</td>
     <td style="color:var(--steel)">${r.orgUnit?esc(r.orgUnit):"— ทั้งหน่วยงาน —"}</td>
-    <td style="text-align:right"><input class="hc-in" id="hcH${i}" type="number" min="0" step="1" value="${hcVal(r,"headcount")}" placeholder="0"
+    <td style="text-align:right"><input class="hc-in" id="hcH${i}" type="number" min="0" step="1" value="${hcVal(r,"headcount")}" placeholder="0"${lock}
       aria-label="จำนวนบุคลากรของ ${esc(r.faculty)}" oninput="hcSet(${i},'headcount',this.value)"></td>
-    <td style="text-align:right"><input class="hc-in" id="hcP${i}" type="number" min="0" step="10" value="${hcVal(r,"hoursPerYear")}" placeholder="${def}"
+    <td style="text-align:right"><input class="hc-in" id="hcP${i}" type="number" min="0" step="10" value="${hcVal(r,"hoursPerYear")}" placeholder="${def}"${lock}
       aria-label="ชั่วโมงทำงานต่อปีของ ${esc(r.faculty)}" oninput="hcSet(${i},'hoursPerYear',this.value)"></td>
-    <td id="hcTot${i}" class="mono" style="text-align:right;color:var(--ink-2)">${r.headcount>0?(r.headcount*(r.hoursPerYear>0?r.hoursPerYear:def)).toLocaleString("en-US"):"—"}</td>
+    <td id="hcTot${i}" class="mono" style="text-align:right;color:var(--ink-2)">${hc>0?(hc*(hp>0?hp:def)).toLocaleString("en-US"):"—"}</td>
+    <td><button class="btn hc-how" title="${gs.length?hcGroupsText(gs):"กรอกวิธีคิดเป็นกลุ่มบุคลากร"}" onclick="hcCalcPick(${i})">${gs.length?"จาก "+gs.length+" กลุ่ม":"คำนวณจากกลุ่ม"}</button></td>
     <td style="font-size:11.5px;color:var(--steel-2)">${r.updatedAt?esc(r.updatedAt)+" · "+esc(r.updatedBy):"ยังไม่เคยกรอก"}</td>
-   </tr>`).join("")}
+   </tr>`}).join("")}
    </tbody></table></div>
    <div id="hcSaveBar" class="hc-bar" style="visibility:${Object.keys(ORG_HC_DIRTY).length?"visible":"hidden"}">
     <span>มีการแก้ไขที่ยังไม่ได้บันทึก</span>
-    <button class="btn" onclick="ORG_HC_DIRTY={};rerenderReport()">ยกเลิก</button>
+    <button class="btn" onclick="ORG_HC_DIRTY={};HC_CALC=null;rerenderReport()">ยกเลิก</button>
     <button class="btn btn-p" onclick="hcSaveAll()">บันทึกทะเบียน</button>
    </div>
   </div>
@@ -1921,6 +1981,7 @@ function afrPanel(rows,p){
       <div class="afr-s"><div class="k">ชั่วโมงทำงานรวม/ปี</div><div class="v">${fmtN(orgHoursTotal())} <small>ชม.</small></div></div>
      </div>`}
    ${hcPanel()}
+   ${hcSourcePanel()}
    <div class="afr-stat">
     <div class="afr-s"><div class="k">อุบัติเหตุที่นับ</div><div class="v">${acc} <small>เรื่องที่มีผู้บาดเจ็บ</small></div></div>
     <div class="afr-s"><div class="k">อุบัติเหตุที่เสียทรัพย์สิน</div><div class="v">${pd} <small>เรื่อง · ${fmtN(ix.baht)} บาท</small></div></div>

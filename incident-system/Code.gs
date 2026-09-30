@@ -121,12 +121,15 @@ var SHEETS = {
      ก่อนรุ่นนี้ค่านี้เก็บอยู่ใน localStorage ของแต่ละเบราว์เซอร์ ผู้บริหารสองคนจึงเห็นดัชนีไม่ตรงกัน
      ทั้งที่ดูข้อมูลชุดเดียวกัน ย้ายมาไว้ที่นี่เพื่อให้มีแหล่งความจริงเดียวทั้งระบบ
      hoursPerYear เว้นว่างได้ ระบบจะใช้ defaultHoursPerYear_() (7 ชม. × 240 วัน) แทน */
-  OrgHeadcount: ['faculty','orgUnit','headcount','hoursPerYear','effectiveYear','updatedAt','updatedBy'],
+  /* staffGroups (รุ่น 2.8.3) = วิธีคิดเวลาการทำงานที่แต่ละคณะกรอกเอง เก็บเป็น JSON
+     [{t:'ชื่อกลุ่ม', n:จำนวนคน, h:ชั่วโมง/วัน, d:วันทำงาน/ปี}, ...]
+     ถ้ามีกลุ่ม ระบบคำนวณ headcount = Σn และ hoursPerYear = Σ(n×h×d) ÷ Σn ให้เอง (ดู cleanStaffGroups_) */
+  OrgHeadcount: ['faculty','orgUnit','headcount','hoursPerYear','effectiveYear','updatedAt','updatedBy','staffGroups'],
   Audit     : ['t','who','role','act','target','detail','auditId','requestId','outcome','errorCode','beforeHash','afterHash','changes','appVersion','prevEntryHash','entryHash'],
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.2';
+var APP_VERSION = '2.8.3';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -943,6 +946,8 @@ function readSheet_(name) {
       o.effectiveYear = String(o.effectiveYear || '').trim();
       o.updatedAt = fmtStamp_(o.updatedAt);
       o.updatedBy = String(o.updatedBy || '').trim();
+      try { o.staffGroups = o.staffGroups ? JSON.parse(String(o.staffGroups)) : []; } catch (eg) { o.staffGroups = []; }
+      if (!Array.isArray(o.staffGroups)) o.staffGroups = [];
     }
     if (name === 'Users') {
       o.email = String(o.email || '').trim().toLowerCase();
@@ -2453,6 +2458,42 @@ function canEditHeadcount_(u, faculty) {
   return faculty === undefined || sameFaculty_(faculty, u.faculty);
 }
 
+/* ตรวจกลุ่มบุคลากรที่คณะกรอกเอง — คืน null ถ้าไม่ได้ส่งมา (คงของเดิม) และ [] ถ้าส่งมาว่าง (ล้าง)
+   จำกัดขนาดและช่วงค่าทุกช่อง เพราะผลรวมกลายเป็นตัวหารของดัชนีทั้งมหาวิทยาลัยโดยตรง */
+var STAFF_GROUPS_MAX = 20;
+function cleanStaffGroups_(v, label) {
+  if (v === undefined || v === null) return null;
+  if (!Array.isArray(v)) throw apiError_('VALIDATION_FAILED', 'กลุ่มบุคลากรของ ' + label + ' ต้องเป็นรายการ');
+  if (v.length > STAFF_GROUPS_MAX)
+    throw apiError_('VALIDATION_FAILED', 'กลุ่มบุคลากรของ ' + label + ' ได้ไม่เกิน ' + STAFF_GROUPS_MAX + ' กลุ่ม');
+  var out = [];
+  v.forEach(function (g, i) {
+    if (!g || typeof g !== 'object' || Array.isArray(g))
+      throw apiError_('VALIDATION_FAILED', 'กลุ่มที่ ' + (i + 1) + ' ของ ' + label + ' ไม่ถูกต้อง');
+    var bad = Object.keys(g).filter(function (k) { return ['t','n','h','d'].indexOf(k) < 0; });
+    if (bad.length) throw apiError_('VALIDATION_FAILED', 'กลุ่มบุคลากรมี field ที่ไม่รองรับ: ' + bad.join(', '));
+    var n = Number(g.n), h = Number(g.h), d = Number(g.d);
+    if (!(n > 0)) return;                                   /* กลุ่มที่ไม่มีคนไม่มีผลต่อการคำนวณ ตัดทิ้ง */
+    if (Math.floor(n) !== n || n > 100000)
+      throw apiError_('VALIDATION_FAILED', 'จำนวนคนของกลุ่มที่ ' + (i + 1) + ' (' + label + ') ต้องเป็นจำนวนเต็มไม่เกิน 100,000');
+    if (!isFinite(h) || h <= 0 || h > 24)
+      throw apiError_('VALIDATION_FAILED', 'ชั่วโมง/วันของกลุ่มที่ ' + (i + 1) + ' (' + label + ') ต้องอยู่ระหว่าง 0–24');
+    if (!isFinite(d) || d <= 0 || d > 365 || Math.floor(d) !== d)
+      throw apiError_('VALIDATION_FAILED', 'วันทำงาน/ปีของกลุ่มที่ ' + (i + 1) + ' (' + label + ') ต้องเป็นจำนวนเต็ม 1–365');
+    out.push({ t:txt_(String(g.t || 'กลุ่มที่ ' + (i + 1)), 80).trim(), n:n, h:Math.round(h * 100) / 100, d:d });
+  });
+  if (out.length) {
+    var s = staffGroupsTotals_(out);
+    if (s.avg < 100) throw apiError_('VALIDATION_FAILED', 'ชั่วโมงเฉลี่ยของ ' + label + ' ต่ำกว่า 100 ชั่วโมง/คน/ปี ผิดปกติ กรุณาตรวจสอบ');
+  }
+  return out;
+}
+function staffGroupsTotals_(groups) {
+  var people = 0, hours = 0;
+  groups.forEach(function (g) { people += g.n; hours += g.n * g.h * g.d; });
+  return { people:people, hours:hours, avg:people ? Math.round(hours / people) : 0 };
+}
+
 function orgHeadcountList_() {
   var u = me_();
   var rows = orgHeadcountInScope_(u, readAll_('OrgHeadcount'));
@@ -2463,7 +2504,8 @@ function orgHeadcountList_() {
     totalHours  += r.headcount * hpy;
     return { faculty:r.faculty, orgUnit:r.orgUnit, headcount:r.headcount,
              hoursPerYear:r.hoursPerYear, effectiveHoursPerYear:hpy,
-             effectiveYear:r.effectiveYear, updatedAt:r.updatedAt, updatedBy:r.updatedBy };
+             effectiveYear:r.effectiveYear, updatedAt:r.updatedAt, updatedBy:r.updatedBy,
+             staffGroups:r.staffGroups || [] };
   }).sort(function (a, b) {
     return a.faculty === b.faculty ? (a.orgUnit < b.orgUnit ? -1 : 1) : (a.faculty < b.faculty ? -1 : 1);
   });
@@ -2505,7 +2547,15 @@ function orgHeadcountSave_(p) {
     var year = txt_(r && r.effectiveYear, 10).trim();
     if (year && !/^\d{4}$/.test(year))
       throw apiError_('VALIDATION_FAILED', 'ปีที่มีผลของ ' + orgUnit + ' ต้องเป็นตัวเลขปี 4 หลัก');
-    return { faculty:faculty, orgUnit:orgUnit,
+    /* คณะกรอกวิธีคิดเวลาการทำงานเป็นกลุ่มบุคลากร → ระบบคำนวณจำนวนคนและชั่วโมงเฉลี่ยเอง
+       ค่าที่ส่งมาในช่อง headcount/hoursPerYear ถูกแทนที่ด้วยผลคำนวณ ตัวเลขในทะเบียนจึงตรงกับวิธีคิดเสมอ */
+    var groups = cleanStaffGroups_(r && r.staffGroups, orgUnit || faculty);
+    if (groups && groups.length) {
+      var gs = staffGroupsTotals_(groups);
+      return { faculty:faculty, orgUnit:orgUnit, headcount:gs.people, hoursPerYear:gs.avg,
+               effectiveYear:year, staffGroups:groups };
+    }
+    return { faculty:faculty, orgUnit:orgUnit, staffGroups:groups,
              headcount:boundedInt_(r.headcount === '' || r.headcount === undefined ? 0 : r.headcount, 0, 100000, 'จำนวนบุคลากรของ ' + orgUnit),
              /* 0 = ไม่ระบุ ใช้ค่ามาตรฐานกลาง จึงต้องยอมรับ 0 แต่ไม่ยอมรับค่าที่ต่ำจนดัชนีพุ่งผิดปกติ */
              hoursPerYear:(function () {
@@ -2533,7 +2583,8 @@ function orgHeadcountSave_(p) {
   var existing = readAll_('OrgHeadcount').map(function (r) {
     return { faculty:r.faculty, orgUnit:r.orgUnit, headcount:r.headcount,
              hoursPerYear:r.hoursPerYear, effectiveYear:r.effectiveYear,
-             updatedAt:r.updatedAt, updatedBy:r.updatedBy };
+             updatedAt:r.updatedAt, updatedBy:r.updatedBy,
+             staffGroups:JSON.stringify(r.staffGroups || []) };
   });
   var index = {};
   existing.forEach(function (r, i) { index[orgKey_(r.faculty, r.orgUnit)] = i; });
@@ -2544,19 +2595,31 @@ function orgHeadcountSave_(p) {
     if (i === undefined) {
       existing.push({ faculty:r.faculty, orgUnit:r.orgUnit, headcount:r.headcount,
                       hoursPerYear:r.hoursPerYear, effectiveYear:r.effectiveYear,
-                      updatedAt:stamp, updatedBy:u.email });
+                      updatedAt:stamp, updatedBy:u.email,
+                      staffGroups:JSON.stringify(r.staffGroups || []) });
       index[k] = existing.length - 1;
       added++;
       after[r.faculty + ' · ' + r.orgUnit] = r.headcount;
       return;
     }
     var old = existing[i];
+    /* staffGroups = null แปลว่าผู้เรียกไม่ได้ส่งมา → คงวิธีคิดเดิมไว้ ส่วน [] แปลว่าล้างแล้วกลับไปกรอกตัวเลขเอง */
+    var newGroups = r.staffGroups === null ? old.staffGroups : JSON.stringify(r.staffGroups);
+    /* ถ้าคงวิธีคิดเดิมที่มีกลุ่มอยู่ ตัวเลขต้องมาจากกลุ่มเสมอ ไม่ใช่ตัวเลขที่ส่งมา มิฉะนั้นทะเบียนจะขัดกับวิธีคิดของตัวเอง */
+    if (r.staffGroups === null) {
+      var kept = []; try { kept = JSON.parse(old.staffGroups || '[]'); } catch (ek) { kept = []; }
+      if (Array.isArray(kept) && kept.length) {
+        var kt = staffGroupsTotals_(kept);
+        r.headcount = kt.people; r.hoursPerYear = kt.avg;
+      }
+    }
     if (old.headcount === r.headcount && old.hoursPerYear === r.hoursPerYear &&
-        String(old.effectiveYear) === String(r.effectiveYear)) return;   /* ไม่เปลี่ยน ไม่ต้องแตะแถว */
+        String(old.effectiveYear) === String(r.effectiveYear) && old.staffGroups === newGroups) return;   /* ไม่เปลี่ยน ไม่ต้องแตะแถว */
     before[r.faculty + ' · ' + r.orgUnit] = old.headcount;
     after[r.faculty + ' · ' + r.orgUnit]  = r.headcount;
     old.headcount = r.headcount; old.hoursPerYear = r.hoursPerYear;
     old.effectiveYear = r.effectiveYear; old.updatedAt = stamp; old.updatedBy = u.email;
+    old.staffGroups = newGroups;
     changed++;
   });
 

@@ -235,7 +235,7 @@ function validatePayloadShape_(action,p){
     if(!Array.isArray(p.rows)) throw apiError_('VALIDATION_FAILED','rows ต้องเป็นรายการของหน่วยงาน');
     if(!p.rows.length) throw apiError_('VALIDATION_FAILED','ไม่มีรายการที่จะบันทึก');
     if(p.rows.length>200) throw apiError_('VALIDATION_FAILED','บันทึกได้ครั้งละไม่เกิน 200 หน่วยงาน');
-    var rowAllow=['faculty','orgUnit','headcount','hoursPerYear','effectiveYear'];
+    var rowAllow=['faculty','orgUnit','headcount','hoursPerYear','effectiveYear','staffGroups'];
     p.rows.forEach(function(r,i){
       if(!r||typeof r!=='object'||Array.isArray(r)) throw apiError_('VALIDATION_FAILED','แถวที่ '+(i+1)+' ต้องเป็น object');
       var bad=Object.keys(r).filter(function(k){return rowAllow.indexOf(k)<0;});

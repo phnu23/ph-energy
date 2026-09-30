@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.2
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.3
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -87,7 +87,7 @@ function runUnitTests() {
 /* ---- ทะเบียนจำนวนบุคลากร (ตัวหารของ IFR / PDFR / ISR) ---- */
 function unitHeadcount_() {
   t_('ชีตทะเบียนจำนวนบุคลากรมีคอลัมน์ครบ', function () {
-    var need = ['faculty','orgUnit','headcount','hoursPerYear','effectiveYear','updatedAt','updatedBy'];
+    var need = ['faculty','orgUnit','headcount','hoursPerYear','effectiveYear','updatedAt','updatedBy','staffGroups'];
     var missing = need.filter(function (c) { return SHEETS.OrgHeadcount.indexOf(c) < 0; });
     return ok_(missing.length === 0, 'ขาดคอลัมน์ ' + missing.join(', '));
   });
@@ -132,6 +132,23 @@ function unitHeadcount_() {
     eq_(canEditHeadcount_(vp), false, 'ผู้บริหารมหาวิทยาลัยดูได้แต่ไม่แก้ทะเบียน');
     eq_(canEditHeadcount_({ registered:true, role:'dean', faculty:'' }), false, 'บัญชีที่ไม่มีคณะแก้ไม่ได้');
     return eq_(canEditHeadcount_({ registered:false, role:'admin' }), false, 'บัญชีที่ยังไม่ลงทะเบียน');
+  });
+
+  /* รุ่น 2.8.3 — คณะกรอกวิธีคิดเวลาการทำงานเป็นกลุ่มบุคลากรเอง ระบบคำนวณจำนวนคนและชั่วโมงเฉลี่ยให้ */
+  t_('คำนวณชั่วโมงจากกลุ่มบุคลากรที่คณะกรอกเอง', function () {
+    var g = cleanStaffGroups_([{ t:'เต็มเวลา', n:40, h:7, d:240 }, { t:'เข้าเวร', n:10, h:8, d:250 },
+                               { t:'พาร์ตไทม์', n:6, h:4, d:240 }, { t:'ว่าง', n:0, h:7, d:240 }], 'ทดสอบ');
+    eq_(g.length, 3, 'ตัดกลุ่มที่ไม่มีคน');
+    var s = staffGroupsTotals_(g);
+    eq_(s.people, 56, 'จำนวนคนรวม');
+    eq_(s.hours, 92960, 'ชั่วโมงรวม');
+    eq_(s.avg, 1660, 'ชั่วโมงเฉลี่ยถ่วงน้ำหนัก');
+    eq_(cleanStaffGroups_(undefined, 'x'), null, 'ไม่ส่งมา = คงของเดิม');
+    eq_(cleanStaffGroups_([], 'x'), [], 'ส่งว่าง = ล้าง');
+    throws_('VALIDATION_FAILED', function () { cleanStaffGroups_([{ n:5, h:30, d:240 }], 'x'); });
+    throws_('VALIDATION_FAILED', function () { cleanStaffGroups_([{ n:5, h:7, d:400 }], 'x'); });
+    throws_('VALIDATION_FAILED', function () { cleanStaffGroups_([{ n:5, h:1, d:20 }], 'x'); });
+    return throws_('VALIDATION_FAILED', function () { cleanStaffGroups_([{ n:5, h:7, d:240, updatedBy:'x' }], 'x'); });
   });
 
   /* กราฟเปรียบเทียบรายคณะคืนเฉพาะตัวเลขรวม เปิดให้ผู้บริหารที่ดูดัชนีได้และผู้ดูแลระบบ */
