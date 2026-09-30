@@ -44,6 +44,8 @@ var API_ACTIONS = {
      ไม่ตั้ง needsVersion เพราะทะเบียนนี้ไม่มีคอลัมน์ version รายแถวแบบชีต Incidents */
   'org.headcount.list':         { fn:orgHeadcountList_,      method:'GET'  },
   'org.headcount.save':         { fn:orgHeadcountSave_,      method:'PATCH'},
+  /* ตัวเลขรวมรายคณะรายเดือนสำหรับกราฟเปรียบเทียบ IFR/ISR/PDFR (รุ่น 2.8.1) ไม่มีข้อมูลรายเรื่อง */
+  'report.facultyIndex':        { fn:reportFacultyIndex_,    method:'GET'  },
   'admin.user.list':            { fn:adminListUsers_,        method:'GET',   auditRead:'ดูทะเบียนผู้ใช้และสิทธิ์' },
   'admin.user.update':          { fn:adminSaveUser_,         method:'PATCH'},
   'admin.readiness':            { fn:adminCheckUsers_,       method:'POST' },
@@ -208,7 +210,7 @@ var API_PAYLOAD_FIELDS={
   'incident.reportUniversity':['incidentId'], 'incident.cancel':['incidentId','note'],
   'incident.return':['incidentId','note'], 'incident.edit':['incidentId','fields','note'],
   'attachment.upload':['name','mime','data'], 'admin.user.list':[],
-  'org.headcount.list':[], 'org.headcount.save':['rows'],
+  'org.headcount.list':[], 'org.headcount.save':['rows'], 'report.facultyIndex':[],
   'admin.user.update':['email','name','position','faculty','orgUnit','unit','role','active'],
   'admin.readiness':['officialUnits'], 'admin.installTriggers':[], 'admin.setupStorage':[],
   'admin.backup':[], 'admin.selfTest':[], 'export.log':['kind','count'], 'audit.list':['limit'], 'system.health':[]
@@ -251,7 +253,7 @@ function normalizeActionArgs_(action, p) {
   if (p.legacyArgs !== undefined) throw apiError_('BAD_REQUEST', 'รูปแบบคำขอนี้ไม่รองรับแล้ว กรุณาโหลดหน้าเว็บใหม่');
   switch (action) {
     case 'auth.config': case 'auth.diagnose': case 'auth.bootstrap': case 'admin.user.list': case 'system.health':
-    case 'admin.installTriggers': case 'admin.setupStorage': case 'org.headcount.list':
+    case 'admin.installTriggers': case 'admin.setupStorage': case 'org.headcount.list': case 'report.facultyIndex':
     case 'admin.backup': case 'admin.selfTest': return [];
     case 'org.headcount.save': return [p];
     case 'incident.list': return [p.since || ''];

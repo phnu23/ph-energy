@@ -600,6 +600,28 @@ textarea{min-height:92px;resize:vertical}
 .hc-bar{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-top:12px;
  font-size:12.5px;color:var(--saed)}
 @media print{.hc-box{display:none}}                       /* ตารางแก้ไขไม่ต้องติดไปกับรายงานที่พิมพ์ */
+/* ---- กราฟเปรียบเทียบดัชนีรายคณะ (2.8.1) ---- */
+.fx-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.fx-tools .spacer{flex:1}
+.fx-sel{width:auto;max-width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font:inherit;font-size:13px;color:var(--ink)}
+.fx-legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--steel);margin-bottom:12px}
+.fx-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.fx-legend i.fx-ref-key{width:0;height:12px;border-left:2px dashed var(--ink);border-radius:0}
+.fx-row{display:grid;grid-template-columns:minmax(150px,240px) 1fr 58px;gap:10px;align-items:center;margin-bottom:6px;font-size:12.8px}
+.fx-row:hover .fx-lab{color:var(--ink)}
+.fx-lab{color:var(--ink-2);line-height:1.3}
+.fx-lab em{font-style:normal;font-size:11px;color:var(--saed-dark);background:var(--saed-tint);border-radius:5px;padding:1px 6px;white-space:nowrap}
+.fx-row.mine .fx-lab{font-weight:700;color:var(--ink)}
+.fx-track{position:relative;background:var(--line-2);border-radius:4px;height:18px}
+.fx-fill{height:100%;border-radius:0 4px 4px 0}
+.fx-ref{position:absolute;top:-3px;bottom:-3px;border-left:2px dashed var(--ink);pointer-events:none}
+.fx-n{text-align:right;color:var(--ink-2);font-size:12.5px}
+.fx-data{margin-top:12px}
+.fx-data>summary{cursor:pointer;font-size:12.8px;font-weight:600;color:var(--ink-2);padding:6px 0}
+.fx-card .r{text-align:right}
+.fx-card tr.mine td{background:var(--saed-tint)}
+@media (max-width:760px){.fx-row{grid-template-columns:1fr 58px}.fx-row .fx-track{grid-column:1/-1;grid-row:2}}
+@media print{.fx-tools select,.fx-tools .rp-seg button:not(.on){display:none}.fx-data{display:block}.fx-card{break-inside:avoid}}
 .afr-stat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
 .afr-s{background:var(--line-2);border-radius:10px;padding:11px 13px}
 .afr-s .k{font-size:11px;color:var(--steel);margin-bottom:5px;line-height:1.35}
@@ -976,10 +998,10 @@ const ROLES={
   can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0}},
  office_head:{name:"หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย",short:"หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย",code:"OFFICE_HEAD",scope:"faculty",sensitiveAccess:1,
   desc:"ผู้รับผิดชอบหลักของคณะ ประเมินระดับความรุนแรง ดำเนินการสอบสวน กำหนดและติดตามมาตรการ จนถึงปิดมาตรการแก้ไข",
-  can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1}},
+  can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1}},
  deputy_dean_sup:{name:"รองคณบดี (กำกับดูแล)",short:"รองคณบดี (กำกับดูแล)",code:"DEPUTY_DEAN_SUP",scope:"faculty",sensitiveAccess:1,
   desc:"รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัยของคณะ ร่วมประเมิน สอบสวน ให้ข้อเสนอแนะ และตรวจสอบผลการติดตามมาตรการ",
-  can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1}},
+  can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1}},
  deputy_dean:{name:"รองคณบดี",short:"รองคณบดี",code:"DEPUTY_DEAN",scope:"faculty",sensitiveAccess:1,oversight:1,
   desc:"รองคณบดีใช้แดชบอร์ดติดตามและรายงานสถิติของคณะ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0}},
@@ -987,22 +1009,25 @@ const ROLES={
   desc:"คณะกรรมการความปลอดภัยฯ ใช้แดชบอร์ดติดตามและรายงานสถิติได้ (คณะที่ยังไม่มี คปอ. ไม่ต้องกำหนดผู้ใช้ในบทบาทนี้)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0}},
  dean:{name:"คณบดี / ผู้อำนวยการกอง",short:"คณบดี",code:"DEAN",scope:"faculty",sensitiveAccess:1,crossLevel3:1,
-  desc:"รับทราบทุกระดับ รายงานมหาวิทยาลัยกรณีระดับ 3 ขึ้นไป และรับทราบผลการดำเนินการก่อนปิดเรื่อง",
-  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
+  desc:"รับทราบทุกระดับ รายงานมหาวิทยาลัยกรณีระดับ 3 ขึ้นไป รับทราบผลการดำเนินการก่อนปิดเรื่อง ดู Dashboard รายงานภาพรวมและเปรียบเทียบดัชนีความปลอดภัยรายคณะ และกรอกจำนวนบุคลากร/ชั่วโมงการทำงานของคณะหรือกองตนเอง",
+  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0,headcount:1}},
  faculty_admin:{name:"ผู้ดูแลระดับคณะ",short:"ผู้ดูแลคณะ",code:"FACULTY_ADMIN",scope:"faculty",
   desc:"จัดการทะเบียนผู้ใช้และสิทธิ์เฉพาะคณะของตนเอง ไม่เห็นผู้ใช้ของคณะอื่น และไม่มีสิทธิ์ระดับระบบ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,userAdmin:1}},
  facility:{name:"กองอาคารสถานที่ (ศูนย์รวมข้อมูล)",short:"กองอาคารฯ",code:"FACILITY_CENTER",scope:"all",
   desc:"รวบรวมข้อมูลทุกหน่วยงานและวิเคราะห์แนวโน้มเชิงกายภาพ โดยไม่กระทบต่อขอบเขตการบริหารจัดการภายในของแต่ละคณะ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
- vice_president:{name:"รองอธิการบดี",short:"รองอธิการบดี",code:"VICE_PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,level3Only:1,reportLevel3:1,
-  desc:"ใช้แดชบอร์ดติดตามระดับมหาวิทยาลัย และดูรายงานสถิติเฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป",
+ vice_president:{name:"รองอธิการบดี",short:"รองอธิการบดี",code:"VICE_PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,
+  desc:"ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
- vice_president_sup:{name:"รองอธิการบดี (กำกับดูแล)",short:"รองอธิการบดี (กำกับดูแล)",code:"VICE_PRESIDENT_SUP",scope:"all",sensitiveAccess:1,oversight:1,uniAlert:1,reportLevel3:1,
-  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามได้ทุกระดับ และดูรายงานสถิติเฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป",
+ assistant_president:{name:"ผู้ช่วยอธิการบดี",short:"ผู้ช่วยอธิการบดี",code:"ASSISTANT_PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,
+  desc:"ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
- president:{name:"อธิการบดี",short:"อธิการบดี",code:"PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,uniAlert:1,reportLevel3:1,
-  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามได้ทุกระดับ และดูรายงานสถิติเฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป",
+ vice_president_sup:{name:"รองอธิการบดี (กำกับดูแล)",short:"รองอธิการบดี (กำกับดูแล)",code:"VICE_PRESIDENT_SUP",scope:"all",sensitiveAccess:1,oversight:1,uniAlert:1,
+  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมได้ทุกระดับ พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
+  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
+ president:{name:"อธิการบดี",short:"อธิการบดี",code:"PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,uniAlert:1,
+  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมได้ทุกระดับ พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
  admin:{name:"ผู้ดูแลระบบ",short:"ผู้ดูแลระบบ",code:"SYS_ADMIN",scope:"all",
   desc:"จัดการผู้ใช้ ผังหน่วยงาน ตรวจสอบบันทึกการใช้งาน และแก้ไขข้อมูลรายงานที่กรอกคลาดเคลื่อน",
@@ -1667,6 +1692,12 @@ function hcSet(i,field,v){
  const k=hcKey(r.faculty,r.orgUnit);
  if(!ORG_HC_DIRTY[k])ORG_HC_DIRTY[k]={faculty:r.faculty,orgUnit:r.orgUnit||""};
  ORG_HC_DIRTY[k][field]=v===""?"":Math.max(0,Number(v)||0);
+ /* ชั่วโมงรวม/ปีของแถวนี้ คำนวณให้เห็นทันทีขณะพิมพ์ ผู้กรอกจะได้ตรวจทานตัวหารของดัชนีก่อนบันทึก */
+ const tot=document.getElementById("hcTot"+i);
+ if(tot){const d=ORG_HC_DIRTY[k];
+  const hc=d.headcount!==undefined?Number(d.headcount)||0:Number(r.headcount)||0;
+  const hp=d.hoursPerYear!==undefined?Number(d.hoursPerYear)||0:Number(r.hoursPerYear)||0;
+  tot.textContent=hc>0?(hc*(hp>0?hp:(ORG_HC.defaultHoursPerYear||1920))).toLocaleString("en-US"):"—"}
  const b=document.getElementById("hcSaveBar");
  if(b)b.style.visibility=Object.keys(ORG_HC_DIRTY).length?"visible":"hidden";
 }
@@ -1701,6 +1732,7 @@ function hcSaveAll(){
  busy(true,"กำลังบันทึกทะเบียนจำนวนบุคลากร…");
  srv("orgHeadcountSave",[rows],function(d){
   BUSY=false;ORG_HC=d.list;ORG_HC_DIRTY={};ORG_HC_STATE="ready";
+  FIX=null;FIX_STATE="idle";   /* ตัวหารเปลี่ยน กราฟเปรียบเทียบรายคณะต้องโหลดใหม่ */
   toast("บันทึกแล้ว · เพิ่ม "+d.added+" · แก้ไข "+d.changed+" หน่วยงาน");
   rerenderReport();
  },function(){BUSY=false});
@@ -1711,14 +1743,15 @@ function hcPanel(){
  HC_ROWS=rows;
  const def=(ORG_HC.defaultHoursPerYear||1920);
  return `<details class="hc-box" ${orgReady()?"":"open"}>
-  <summary>ทะเบียนจำนวนบุคลากร · กรอกแล้ว ${ORG_HC.configured} จาก ${rows.length} หน่วยงาน</summary>
+  <summary>ทะเบียนจำนวนบุคลากรและชั่วโมงการทำงาน · กรอกแล้ว ${ORG_HC.configured} จาก ${rows.length} หน่วยงาน</summary>
   <div class="hc-body">
    <div class="note" style="margin:0 0 10px;font-size:12.3px">จำนวนบุคลากรนี้เก็บไว้ที่ฐานข้อมูลกลาง ทุกคนที่เปิดรายงานจึงเห็นดัชนีตรงกัน
     ช่องชั่วโมงทำงาน/ปี เว้นว่างได้ ระบบจะใช้ค่ามาตรฐาน ${def.toLocaleString("en-US")} ชั่วโมง (8 ชั่วโมง × 240 วัน)
-    ${ORG_HC.scope==="all"?"กรอกที่ระดับคณะ/หน่วยงาน ห้ามกรอกทั้งระดับคณะและระดับหน่วยงานย่อยของคณะเดียวกันพร้อมกัน เพราะจะนับคนซ้ำ":"ท่านแก้ไขได้เฉพาะหน่วยงานในคณะของท่าน"}</div>
+    ${ORG_HC.scope==="all"?"กรอกที่ระดับคณะ/หน่วยงาน ห้ามกรอกทั้งระดับคณะและระดับหน่วยงานย่อยของคณะเดียวกันพร้อมกัน เพราะจะนับคนซ้ำ"
+      :"แต่ละคณะ/กองกรอกและปรับปรุงจำนวนบุคลากรและชั่วโมงการทำงานของตนเองได้ ท่านแก้ไขได้เฉพาะ <b>"+esc(userFaculty(ME))+"</b>"}</div>
    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr>
     <th>คณะ/หน่วยงาน</th><th>หน่วยงานย่อย</th><th style="text-align:right">บุคลากร (คน)</th>
-    <th style="text-align:right">ชั่วโมง/ปี</th><th>แก้ไขล่าสุด</th></tr></thead><tbody>
+    <th style="text-align:right">ชั่วโมง/คน/ปี</th><th style="text-align:right">รวมชั่วโมง/ปี</th><th>แก้ไขล่าสุด</th></tr></thead><tbody>
    ${rows.map((r,i)=>`<tr class="${r.headcount>0?"":"hc-empty"}">
     <td>${esc(r.faculty)}</td>
     <td style="color:var(--steel)">${r.orgUnit?esc(r.orgUnit):"— ทั้งหน่วยงาน —"}</td>
@@ -1726,6 +1759,7 @@ function hcPanel(){
       aria-label="จำนวนบุคลากรของ ${esc(r.faculty)}" oninput="hcSet(${i},'headcount',this.value)"></td>
     <td style="text-align:right"><input class="hc-in" type="number" min="0" step="10" value="${r.hoursPerYear||""}" placeholder="${def}"
       aria-label="ชั่วโมงทำงานต่อปีของ ${esc(r.faculty)}" oninput="hcSet(${i},'hoursPerYear',this.value)"></td>
+    <td id="hcTot${i}" class="mono" style="text-align:right;color:var(--ink-2)">${r.headcount>0?(r.headcount*(r.hoursPerYear>0?r.hoursPerYear:def)).toLocaleString("en-US"):"—"}</td>
     <td style="font-size:11.5px;color:var(--steel-2)">${r.updatedAt?esc(r.updatedAt)+" · "+esc(r.updatedBy):"ยังไม่เคยกรอก"}</td>
    </tr>`).join("")}
    </tbody></table></div>
@@ -1889,6 +1923,140 @@ function idxTrendChart(rows,months,uid){
  ${empty?`<div class="note" style="margin-top:10px">ในช่วงนี้ยังไม่มีอุบัติเหตุที่มีผู้บาดเจ็บในขอบเขตที่ท่านเข้าถึงได้ เส้นทั้งสองจึงอยู่ที่ศูนย์</div>`:""}`;
 }
 
+/* ========== 8.7 เปรียบเทียบดัชนีความปลอดภัยรายคณะ (รุ่น 2.8.1) ==========
+   ข้อมูลมาจากคำสั่ง report.facultyIndex ซึ่งคืนเฉพาะตัวเลขรวมรายคณะรายเดือน (ไม่มีข้อมูลรายเรื่อง)
+   เกณฑ์การนับตรงกับ safetyIndex() ด้านบน ตัวหารคือชั่วโมงทำงาน/ปีของคณะนั้นจากทะเบียนบุคลากร
+   คิดตามสัดส่วนจำนวนเดือนในช่วงที่เลือก (รายเดือน = 1/12 ของปี รายปี = จำนวนเดือนที่ผ่านไปแล้วในปีนั้น)
+   ใช้แกนเดียวและแสดงทีละดัชนี เพราะ ISR คนละหน่วยกับ IFR/PDFR เทียบความยาวแท่งข้ามกันไม่ได้ */
+let FIX=null,FIX_STATE="idle",FIX_ERR="";
+let FIX_VIEW="year",FIX_YEARTYPE="fiscal",FIX_PERIOD="",FIX_METRIC="ifr";
+const FIX_METRICS={
+ ifr:{k:"IFR",t:"อัตราความถี่การบาดเจ็บ",c:"#5A6874",n:"inj",u:"ราย"},
+ isr:{k:"ISR",t:"อัตราความรุนแรงของการบาดเจ็บ",c:"#D96C0C",n:"lost",u:"วันหยุดงาน"},
+ pdfr:{k:"PDFR",t:"อัตราความถี่ความเสียหายทางทรัพย์สิน",c:"#2E86C1",n:"pd",u:"เรื่อง"}};
+function canCompareFaculties(){const r=ROLES[ME.role];return !!(r&&(r.can.safetyIndex||r.can.admin))}
+function loadFacultyIndex(force){
+ if(FIX_STATE==="loading")return;
+ if(FIX&&!force)return;
+ FIX_STATE="loading";
+ srv("reportFacultyIndex",[],
+  function(d){FIX=d;FIX_STATE="ready";FIX_ERR="";rerenderReport()},
+  function(e){FIX_STATE="error";FIX_ERR=(e&&e.message)||"โหลดข้อมูลเปรียบเทียบรายคณะไม่สำเร็จ";rerenderReport()});
+}
+function setFix(k,v){
+ if(k==="view"){FIX_VIEW=v;FIX_PERIOD=""}
+ if(k==="yeartype"){FIX_YEARTYPE=v;FIX_PERIOD=""}
+ if(k==="period")FIX_PERIOD=v;
+ if(k==="metric")FIX_METRIC=v;
+ rerenderReport();
+}
+/* เดือนทั้งหมดที่มีข้อมูล ไปจนถึงเดือนปัจจุบัน */
+function fixFirstMonth(){
+ let min=new Date().toISOString().slice(0,7);
+ ((FIX&&FIX.faculties)||[]).forEach(f=>Object.keys(f.months||{}).forEach(m=>{if(m<min)min=m}));
+ return min;
+}
+function fixMonthsBetween(a,b){
+ const out=[];let y=+a.slice(0,4),m=+a.slice(5,7);const ey=+b.slice(0,4),em=+b.slice(5,7);
+ while(y<ey||(y===ey&&m<=em)){out.push(y+"-"+String(m).padStart(2,"0"));m++;if(m>12){m=1;y++}}
+ return out;
+}
+/* ปีงบประมาณ พ.ศ. Y = 1 ต.ค. (Y-544) ถึง 30 ก.ย. (Y-543) ตามปีงบประมาณราชการ */
+function fixYearOf(ym){const y=+ym.slice(0,4),m=+ym.slice(5,7);return FIX_YEARTYPE==="fiscal"?(m>=10?y+1:y):y}
+function fixPeriodOptions(){
+ const now=new Date().toISOString().slice(0,7), ms=fixMonthsBetween(fixFirstMonth(),now);
+ if(FIX_VIEW==="month")return ms.slice().reverse().map(m=>({v:m,l:thMonthLabel(m).replace(/(\d{2})$/," 25$1")}));
+ const ys=[...new Set(ms.map(fixYearOf))].sort((a,b)=>b-a);
+ return ys.map(y=>({v:String(y),l:(FIX_YEARTYPE==="fiscal"?"ปีงบประมาณ ":"ปี ")+"พ.ศ. "+(y+543)}));
+}
+/* เดือนในช่วงที่เลือก ตัดเดือนในอนาคตทิ้ง เพื่อให้ปีปัจจุบันที่ยังไม่ครบใช้ชั่วโมงเท่าที่ผ่านไปจริง */
+function fixPeriodMonths(p){
+ const now=new Date().toISOString().slice(0,7);
+ if(FIX_VIEW==="month")return [p];
+ const y=+p, from=FIX_YEARTYPE==="fiscal"?(y-1)+"-10":y+"-01", to=FIX_YEARTYPE==="fiscal"?y+"-09":y+"-12";
+ return fixMonthsBetween(from,to<now?to:now);
+}
+function fixCompute(months){
+ const n=months.length;
+ const known=new Set(((FIX&&FIX.faculties)||[]).map(f=>f.faculty));
+ const list=((FIX&&FIX.faculties)||[]).slice();
+ /* ผู้เห็นทั้งมหาวิทยาลัยต้องเห็นคณะที่ยังไม่กรอกชั่วโมงด้วย จะได้รู้ว่าใครยังค้าง */
+ ALL_UNITS.forEach(u=>{if(!known.has(u.unit))list.push({faculty:u.unit,headcount:0,hoursPerYear:0,months:{}})});
+ const rows=list.map(f=>{
+  let inj=0,lost=0,pd=0;
+  months.forEach(m=>{const x=(f.months||{})[m];if(x){inj+=x.inj;lost+=x.lost;pd+=x.pd}});
+  const hours=(Number(f.hoursPerYear)||0)*n/12, ready=hours>0;
+  return {faculty:f.faculty,headcount:f.headcount||0,hours:hours,inj:inj,lost:lost,pd:pd,ready:ready,
+          ifr:ready?inj*1e6/hours:null,isr:ready?lost*1e6/hours:null,pdfr:ready?pd*1e6/hours:null};
+ });
+ /* ค่ารวมมหาวิทยาลัยนับเฉพาะคณะที่มีชั่วโมงแล้ว ตัวตั้งกับตัวหารจึงเป็นประชากรกลุ่มเดียวกัน */
+ const r=rows.filter(x=>x.ready), H=r.reduce((a,x)=>a+x.hours,0);
+ const sum=k=>r.reduce((a,x)=>a+x[k],0);
+ const uni=H>0?{ifr:sum("inj")*1e6/H,isr:sum("lost")*1e6/H,pdfr:sum("pd")*1e6/H,hours:H}:null;
+ return {rows:rows,uni:uni};
+}
+function fixPanel(){
+ if(FIX_STATE==="idle")setTimeout(function(){loadFacultyIndex()},0);
+ if(FIX_STATE!=="ready"||!FIX)return `<div class="card"><div class="card-b">${FIX_STATE==="error"
+  ?`<div class="note warn" style="margin:0">${esc(FIX_ERR)} <button class="btn" style="margin-left:8px" onclick="loadFacultyIndex(true)">ลองใหม่</button></div>`
+  :`<div class="note" style="margin:0">กำลังโหลดข้อมูลเปรียบเทียบรายคณะ…</div>`}</div></div>`;
+ const opts=fixPeriodOptions();
+ if(!opts.some(o=>o.v===FIX_PERIOD))FIX_PERIOD=opts.length?opts[0].v:"";
+ const plabel=(opts.find(o=>o.v===FIX_PERIOD)||{l:"—"}).l;
+ const months=fixPeriodMonths(FIX_PERIOD), res=fixCompute(months), M=FIX_METRICS[FIX_METRIC];
+ const own=String(FIX.ownFaculty||"").trim();
+ const ready=res.rows.filter(x=>x.ready).sort((a,b)=>b[FIX_METRIC]-a[FIX_METRIC]||b[M.n]-a[M.n]||a.faculty.localeCompare(b.faculty,"th"));
+ const missing=res.rows.filter(x=>!x.ready).sort((a,b)=>a.faculty.localeCompare(b.faculty,"th"));
+ const uniV=res.uni?res.uni[FIX_METRIC]:null;
+ const max=Math.max(uniV||0,...ready.map(x=>x[FIX_METRIC]))||1;
+ const fmt=v=>v===null||v===undefined?"—":v.toFixed(2);
+ const fmtN=n=>Math.round(n).toLocaleString("en-US");
+ const refPct=uniV!==null?(uniV/max*100).toFixed(1):null;
+ const bars=ready.length?ready.map(x=>{
+  const v=x[FIX_METRIC], mine=own&&x.faculty===own;
+  const tip=`${x.faculty} · ${M.k} ${fmt(v)} · ${M.t} (${x[M.n]} ${M.u}) · ชั่วโมงทำงาน ${fmtN(x.hours)} ชม. ในช่วง ${months.length} เดือน`;
+  return `<div class="fx-row${mine?" mine":""}" title="${esc(tip)}">
+   <span class="fx-lab">${esc(x.faculty)}${mine?` <em>คณะของท่าน</em>`:""}</span>
+   <div class="fx-track">${v>0?`<div class="fx-fill" style="width:${Math.max(.6,v/max*100).toFixed(1)}%;background:${M.c}"></div>`:""}
+    ${refPct!==null?`<i class="fx-ref" style="left:${refPct}%"></i>`:""}</div>
+   <span class="fx-n mono">${fmt(v)}</span></div>`}).join("")
+  :`<div class="empty"><b>ยังเปรียบเทียบไม่ได้</b>ยังไม่มีคณะใดกรอกจำนวนบุคลากรและชั่วโมงการทำงาน</div>`;
+ const tbl=ready.concat(missing).map(x=>`<tr${own&&x.faculty===own?' class="mine"':""}><td>${esc(x.faculty)}</td>
+   <td class="mono r">${x.headcount?fmtN(x.headcount):"—"}</td><td class="mono r">${x.ready?fmtN(x.hours):"—"}</td>
+   <td class="mono r">${x.inj}</td><td class="mono r"><b>${fmt(x.ifr)}</b></td>
+   <td class="mono r">${x.lost}</td><td class="mono r"><b>${fmt(x.isr)}</b></td>
+   <td class="mono r">${x.pd}</td><td class="mono r"><b>${fmt(x.pdfr)}</b></td></tr>`).join("");
+ const missInc=missing.filter(x=>x.inj||x.pd);
+ return `<div class="card fx-card"><div class="card-h"><h3>เปรียบเทียบ ${M.k} รายคณะ · ${esc(plabel)}</h3>
+   <span class="hint">${M.t} ต่อชั่วโมงการทำงาน 1,000,000 ชั่วโมง</span></div>
+  <div class="card-b">
+   <div class="fx-tools">
+    <div class="rp-seg">${[["month","รายเดือน"],["year","รายปี"]].map(([k,l])=>`<button class="${FIX_VIEW===k?"on":""}" onclick="setFix('view','${k}')">${l}</button>`).join("")}</div>
+    ${FIX_VIEW==="year"?`<select class="fx-sel" aria-label="ประเภทปี" onchange="setFix('yeartype',this.value)">
+      <option value="fiscal"${FIX_YEARTYPE==="fiscal"?" selected":""}>ปีงบประมาณ (ต.ค.–ก.ย.)</option>
+      <option value="calendar"${FIX_YEARTYPE==="calendar"?" selected":""}>ปีปฏิทิน (ม.ค.–ธ.ค.)</option></select>`:""}
+    <select class="fx-sel" aria-label="ช่วงเวลา" onchange="setFix('period',this.value)">${opts.map(o=>`<option value="${o.v}"${o.v===FIX_PERIOD?" selected":""}>${esc(o.l)}</option>`).join("")}</select>
+    <div class="spacer"></div>
+    <div class="rp-seg">${Object.keys(FIX_METRICS).map(k=>`<button class="${FIX_METRIC===k?"on":""}" onclick="setFix('metric','${k}')">${FIX_METRICS[k].k}</button>`).join("")}</div>
+   </div>
+   <div class="fx-legend"><span><i style="background:${M.c}"></i>${M.k} ของแต่ละคณะ</span>
+    ${uniV!==null?`<span><i class="fx-ref-key"></i>ค่ารวมมหาวิทยาลัย <b class="mono">${fmt(uniV)}</b></span>`:""}
+    <span>${months.length} เดือน · ${ready.length} คณะที่มีชั่วโมงการทำงาน</span></div>
+   ${bars}
+   ${missing.length?`<div class="note${missInc.length?" warn":""}" style="margin-top:12px;font-size:12.3px">
+     <b>ยังไม่มีชั่วโมงการทำงาน ${missing.length} คณะ/หน่วยงาน</b> จึงยังคำนวณดัชนีไม่ได้
+     ${missInc.length?`— ในจำนวนนี้มีอุบัติเหตุที่นับในช่วงนี้แล้ว: ${missInc.map(x=>esc(x.faculty)).join(", ")}`:""}
+     <br>แต่ละคณะ/กองกรอกได้เองที่ "ทะเบียนจำนวนบุคลากรและชั่วโมงการทำงาน" ในการ์ดดัชนีความปลอดภัยด้านบน</div>`:""}
+   <details class="fx-data"><summary>ตารางข้อมูลทุกคณะ (IFR · ISR · PDFR)</summary>
+    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>คณะ/หน่วยงาน</th><th class="r">บุคลากร</th><th class="r">ชั่วโมงในช่วง</th>
+     <th class="r">บาดเจ็บ</th><th class="r">IFR</th><th class="r">วันหยุดงาน</th><th class="r">ISR</th><th class="r">เสียทรัพย์สิน</th><th class="r">PDFR</th></tr></thead>
+     <tbody>${tbl}</tbody></table></div></details>
+   <div class="note" style="margin-top:12px;font-size:12.3px"><b>วิธีอ่าน</b> แท่งยาวกว่า = ค่าดัชนีสูงกว่า เส้นประแนวตั้งคือค่ารวมทั้งมหาวิทยาลัย
+    คณะที่แท่งเลยเส้นประมีดัชนีสูงกว่าภาพรวม ชี้ที่แท่งเพื่อดูจำนวนที่ใช้คำนวณ
+    ข้อมูลส่วนนี้เป็นตัวเลขรวมรายคณะเท่านั้น ไม่มีรายละเอียดรายเรื่อง และไม่นับเรื่องที่ยกเลิกหรือเหตุการณ์เกือบเกิดอุบัติเหตุ</div>
+  </div></div>`;
+}
+
 function pgReport(){
  const rows=rpRows(RP_PERIOD), prev=rpPrev(RP_PERIOD), r=rpRange(RP_PERIOD);
  const total=rows.length;
@@ -1959,12 +2127,14 @@ ${ROLES[ME.role].can.safetyIndex?`
     <br>เส้นประสีส้มคือ <b>ISR</b> อ่านค่าจาก<b>แกนขวา</b> บอกว่าเมื่อบาดเจ็บแล้ว<b>รุนแรงแค่ไหน</b> โดยนับเป็นวันหยุดงาน คนละหน่วยกับสองเส้นแรก
     <b>จึงห้ามเทียบความสูงของเส้น ISR กับอีกสองเส้นโดยตรง</b> ให้ดูทิศทางการขึ้นลงแทน
     <br>ชี้ที่กราฟเพื่อดูค่าของแต่ละเดือน พร้อมจำนวนผู้บาดเจ็บและวันหยุดงานที่ใช้คำนวณ
-${ME.role==="vice_president"?`
-    <br><b>สำหรับบทบาทนี้</b> เรื่องที่<b>ระดับความรุนแรงรวม</b>ต่ำกว่า 3 ระบบจะส่งมาเฉพาะตัวเลขที่ใช้คำนวณ คือ วันที่ ลักษณะเหตุ เกณฑ์ผลต่อร่างกาย และจำนวนวันหยุดงาน ไม่มีชื่อเรื่อง เนื้อหา ผู้รายงาน หรือบันทึกใด ๆ
-    ค่า IFR และ ISR ที่ท่านเห็นจึง<b>เท่ากับค่าจริงของทั้งมหาวิทยาลัย</b> โดยสิทธิ์อ่านรายละเอียดรายเรื่องยังจำกัดอยู่ที่ระดับความรุนแรงรวม 3 ขึ้นไปเช่นเดิม`:``}</div>
+</div>
   </div></div>
 `:""}
 
+${canCompareFaculties()?`
+ <div class="section-title">เปรียบเทียบดัชนีความปลอดภัยรายคณะ · IFR · ISR · PDFR</div>
+ ${fixPanel()}
+`:""}
  <div class="section-title">แนวโน้มการเกิดอุบัติการณ์</div>
  <div class="grid g23">
   <div class="card"><div class="card-h"><h3>จำนวนอุบัติการณ์รายเดือน</h3><span class="hint">ส่วนสีเข้มคือเหตุระดับ 3 ขึ้นไป</span></div>
@@ -3277,7 +3447,8 @@ var API_ACTION_MAP = {
   systemHealth:'system.health', adminInstallTriggers:'admin.installTriggers',
   adminSetupStorage:'admin.setupStorage', adminBackup:'admin.backup',
   adminSelfTest:'admin.selfTest',
-  orgHeadcountList:'org.headcount.list', orgHeadcountSave:'org.headcount.save'
+  orgHeadcountList:'org.headcount.list', orgHeadcountSave:'org.headcount.save',
+  reportFacultyIndex:'report.facultyIndex'
 };
 function requestId(){
   if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
@@ -3288,7 +3459,7 @@ function requestId(){
 function apiPayload(fn,a){
   switch(fn){
     case 'getAuthConfig': case 'authDiagnose': case 'getBootstrap': case 'adminListUsers': case 'systemHealth':
-    case 'adminInstallTriggers': case 'adminSetupStorage': case 'orgHeadcountList':
+    case 'adminInstallTriggers': case 'adminSetupStorage': case 'orgHeadcountList': case 'reportFacultyIndex':
     case 'adminBackup': case 'adminSelfTest': return {};
     case 'orgHeadcountSave':    return {rows:a[0]||[]};
     case 'refresh': return {since:a[0]||''};

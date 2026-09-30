@@ -123,7 +123,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.0';
+var APP_VERSION = '2.8.1';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -167,20 +167,23 @@ var ROLES = {
   reporter         : { scope:'own',     can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
   supervisor       : { scope:'orgUnit', can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
   /* edit = แก้ไขข้อมูลที่ผู้รายงานกรอก (editIncident_) — หัวหน้าสำนักงาน รองคณบดี (กำกับดูแล) และผู้ดูแลระบบ */
-  office_head      : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1} },
+  office_head      : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1} },
   /* รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัย ร่วมดำเนินการได้ */
-  deputy_dean_sup  : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1} },
+  deputy_dean_sup  : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1} },
   /* บทบาทกำกับดูแล: ดูภาพรวมและรายงานภาพรวมเท่านั้น ไม่แก้ไขข้อมูลปฏิบัติการ */
   deputy_dean      : { scope:'faculty', sensitiveAccess:1, oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0} },
   safety_committee : { scope:'faculty', oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0} },
-  dean             : { scope:'faculty', sensitiveAccess:1, crossLevel3:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  dean             : { scope:'faculty', sensitiveAccess:1, crossLevel3:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0,headcount:1} },
   /* ผู้ดูแลระดับคณะ: จัดการทะเบียนสิทธิ์เฉพาะคณะของตนเอง มองไม่เห็นและแก้ไม่ได้ซึ่งผู้ใช้ของคณะอื่น
      ไม่มีสิทธิ์ระดับระบบ (สำรองข้อมูล ติดตั้งทริกเกอร์ อ่าน Audit ทั้งมหาวิทยาลัย ตรวจสุขภาพระบบ)
      และไม่มีสิทธิ์ในข้อมูลปฏิบัติการของเรื่อง เพื่อไม่ให้ผู้จัดการสิทธิ์กลายเป็นผู้ตัดสินเรื่องเสียเอง */
   faculty_admin    : { scope:'faculty', can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,userAdmin:1} },
   facility         : { scope:'all',     can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
-  /* ผู้บริหารระดับมหาวิทยาลัย: รองอธิการบดี (ทั่วไป) เห็นเฉพาะระดับ 3 ขึ้นไป */
-  vice_president     : { scope:'all', sensitiveAccess:1, oversight:1, level3Only:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  /* ผู้บริหารระดับมหาวิทยาลัย — ตั้งแต่รุ่น 2.8.1 รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดี
+     เห็น Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัยเช่นเดียวกับอธิการบดี (ถอด level3Only ออก)
+     ยังเป็นบทบาทกำกับดูแล (oversight) จึงไม่เข้าถึงรายละเอียดรายเรื่องและไม่แก้ไขข้อมูลปฏิบัติการ */
+  vice_president     : { scope:'all', sensitiveAccess:1, oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  assistant_president: { scope:'all', sensitiveAccess:1, oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   vice_president_sup : { scope:'all', sensitiveAccess:1, oversight:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   president          : { scope:'all', sensitiveAccess:1, oversight:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   /* ผู้ดูแลระบบแก้ข้อมูลรายงาน (edit) ได้ทุกคณะ ยกเว้นเรื่องอ่อนไหว เพราะไม่มี sensitiveAccess (findScoped_ ปฏิเสธเอง) */
@@ -2428,13 +2431,18 @@ function orgHeadcountInScope_(u, rows) {
   });
 }
 
-/* สิทธิ์แก้ไขทะเบียน — ผู้ดูแลระบบแก้ได้ทุกคณะ ผู้ดูแลระดับคณะแก้ได้เฉพาะคณะของตนเอง
+/* สิทธิ์แก้ไขทะเบียน — ผู้ดูแลระบบแก้ได้ทุกคณะ
+   ผู้ดูแลระดับคณะ และบทบาทที่มีสิทธิ์ headcount (หัวหน้าสำนักงาน รองคณบดี (กำกับดูแล) คณบดี/ผู้อำนวยการกอง)
+   แก้ได้เฉพาะคณะ/กองของตนเอง — แต่ละคณะและกองกรอกจำนวนบุคลากรและชั่วโมงทำงานเองได้เหมือนรุ่น 2.6.6
+   แต่ค่ายังเก็บที่ฐานข้อมูลกลาง ทุกคนจึงเห็นดัชนีตรงกัน
    ใช้ตัวนี้ทั้งตอนบอกหน้าจอว่าให้แสดงปุ่มหรือไม่ และตอนตรวจจริงตอนบันทึก
    จึงไม่มีทางที่หน้าจอกับเซิร์ฟเวอร์จะเห็นสิทธิ์ไม่ตรงกัน */
 function canEditHeadcount_(u, faculty) {
   if (!u || !u.registered || !isRole_(u.role)) return false;
   if (isSystemAdmin_(u)) return true;
-  if (!ROLES[u.role].can.userAdmin) return false;
+  var can = ROLES[u.role].can;
+  if (!can.userAdmin && !can.headcount) return false;
+  if (!String(u.faculty || '').trim()) return false;
   return faculty === undefined || sameFaculty_(faculty, u.faculty);
 }
 
@@ -2574,6 +2582,59 @@ function orgHeadcountSave_(p) {
   audit_(u, 'แก้ไขทะเบียนจำนวนบุคลากร', 'OrgHeadcount',
     'เพิ่ม ' + added + ' · แก้ไข ' + changed + ' · ส่งมา ' + clean.length + ' หน่วยงาน');
   return { added:added, changed:changed, unchanged:clean.length - added - changed, list:orgHeadcountList_() };
+}
+
+/* ============================================================
+ *  เปรียบเทียบดัชนีความปลอดภัยรายคณะ (IFR / ISR / PDFR) — รุ่น 2.8.1
+ *  ------------------------------------------------------------
+ *  คืนเฉพาะตัวเลขรวมรายคณะรายเดือน ไม่มีเรื่อง เนื้อหา ผู้รายงาน หรือรายการรายเรื่องใด ๆ
+ *  จึงเปิดให้ผู้บริหารที่มีสิทธิ์ดูดัชนี (safetyIndex) และผู้ดูแลระบบเห็นทุกคณะได้ เพื่อเทียบกัน
+ *  เกณฑ์การนับต้องตรงกับ safetyIndex() ใน Index.html ทุกข้อ:
+ *    - ไม่นับเรื่องที่ยกเลิก และไม่นับเหตุการณ์เกือบเกิดอุบัติเหตุ (kind = near)
+ *    - IFR นับอุบัติเหตุที่ injuryAxis ≥ 2 · ISR รวม daysOff ของเรื่องเหล่านั้น
+ *    - PDFR นับอุบัติเหตุที่ damageAxis ≥ 2
+ *  ตัวหาร (ชั่วโมงทำงาน/ปี) มาจาก OrgHeadcount รวมทุกแถวของคณะนั้น — หน้าจอคิดตามสัดส่วนเดือนเอง
+ * ============================================================ */
+var FACULTY_INDEX_MIN_INJURY = 2;
+var FACULTY_INDEX_MIN_DAMAGE = 2;
+function canCompareFaculties_(u) {
+  if (!u || !u.registered || !isRole_(u.role)) return false;
+  return isSystemAdmin_(u) || !!ROLES[u.role].can.safetyIndex;
+}
+function reportFacultyIndex_() {
+  var u = me_();
+  if (!canCompareFaculties_(u)) {
+    audit_(u, 'ถูกปฏิเสธสิทธิ์', 'facultyIndex', 'บทบาท ' + u.role);
+    throw apiError_('FORBIDDEN', 'ไม่มีสิทธิ์ดูการเปรียบเทียบดัชนีความปลอดภัยรายคณะ');
+  }
+  var fac = {};
+  var get = function (name) {
+    name = String(name || '').trim() || 'ไม่ระบุคณะ/หน่วยงาน';
+    if (!fac[name]) fac[name] = { faculty:name, headcount:0, hoursPerYear:0, months:{} };
+    return fac[name];
+  };
+  readAll_('OrgHeadcount').forEach(function (r) {
+    if (!(r.headcount > 0)) return;
+    var f = get(r.faculty);
+    f.headcount += r.headcount;
+    f.hoursPerYear += r.headcount * orgHoursPerYear_(r);
+  });
+  readAll_('Incidents').forEach(function (x) {
+    if (x.status === CANCELLED || x.kind === 'near') return;
+    var ym = String(x.date || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(ym)) return;
+    var inj = (Number(x.injuryAxis) || 1) >= FACULTY_INDEX_MIN_INJURY;
+    var pd  = (Number(x.damageAxis) || 1) >= FACULTY_INDEX_MIN_DAMAGE;
+    if (!inj && !pd) return;
+    var f = get(x.faculty || x.unit);
+    var m = f.months[ym] || (f.months[ym] = { inj:0, lost:0, pd:0 });
+    if (inj) { m.inj++; m.lost += Number(x.daysOff) || 0; }
+    if (pd) m.pd++;
+  });
+  var rows = Object.keys(fac).sort().map(function (k) { return fac[k]; });
+  return { faculties:rows, ownFaculty:String(u.faculty || '').trim(),
+           defaultHoursPerYear:Number(CONFIG.DEFAULT_HOURS_PER_YEAR) || 1920,
+           generatedAt:now_() };
 }
 
 /* คณบดีทำหน้าที่ตรวจสอบผลการติดตามแทนได้เฉพาะคณะที่ยังไม่มีรองคณบดี (กำกับดูแล) ที่ใช้งานอยู่

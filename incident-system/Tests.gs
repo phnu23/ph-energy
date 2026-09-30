@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.0
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.1
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -118,8 +118,39 @@ function unitHeadcount_() {
     eq_(canEditHeadcount_(admin, 'คณะแพทยศาสตร์'), true, 'ผู้ดูแลระบบแก้ได้ทุกคณะ');
     eq_(canEditHeadcount_(fadm, 'คณะสาธารณสุขศาสตร์'), true, 'ผู้ดูแลระดับคณะแก้คณะตัวเองได้');
     eq_(canEditHeadcount_(fadm, 'คณะแพทยศาสตร์'), false, 'ผู้ดูแลระดับคณะแก้คณะอื่นไม่ได้');
-    eq_(canEditHeadcount_(dean, 'คณะสาธารณสุขศาสตร์'), false, 'คณบดีไม่ใช่ผู้จัดการทะเบียน');
+    /* ตั้งแต่ 2.8.1 แต่ละคณะ/กองกรอกทะเบียนเองได้ (เหมือนรุ่น 2.6.6) แต่เฉพาะคณะของตนเอง */
+    var office = { registered:true, role:'office_head', faculty:'คณะสาธารณสุขศาสตร์' };
+    var sup    = { registered:true, role:'supervisor', faculty:'คณะสาธารณสุขศาสตร์', orgUnit:'งานธุรการ' };
+    var vp     = { registered:true, role:'vice_president', faculty:'สำนักงานอธิการบดี' };
+    eq_(canEditHeadcount_(dean, 'คณะสาธารณสุขศาสตร์'), true, 'คณบดี/ผอ.กอง กรอกของคณะ/กองตัวเองได้');
+    eq_(canEditHeadcount_(dean, 'คณะแพทยศาสตร์'), false, 'คณบดีแก้คณะอื่นไม่ได้');
+    eq_(canEditHeadcount_(office, 'คณะสาธารณสุขศาสตร์'), true, 'หัวหน้าสำนักงานกรอกของคณะตัวเองได้');
+    eq_(canEditHeadcount_(office, 'คณะแพทยศาสตร์'), false, 'หัวหน้าสำนักงานแก้คณะอื่นไม่ได้');
+    eq_(canEditHeadcount_(sup, 'คณะสาธารณสุขศาสตร์'), false, 'หัวหน้างานไม่มีสิทธิ์กรอกทะเบียน');
+    eq_(canEditHeadcount_(vp), false, 'ผู้บริหารมหาวิทยาลัยดูได้แต่ไม่แก้ทะเบียน');
+    eq_(canEditHeadcount_({ registered:true, role:'dean', faculty:'' }), false, 'บัญชีที่ไม่มีคณะแก้ไม่ได้');
     return eq_(canEditHeadcount_({ registered:false, role:'admin' }), false, 'บัญชีที่ยังไม่ลงทะเบียน');
+  });
+
+  /* กราฟเปรียบเทียบรายคณะคืนเฉพาะตัวเลขรวม เปิดให้ผู้บริหารที่ดูดัชนีได้และผู้ดูแลระบบ */
+  t_('สิทธิ์ดูการเปรียบเทียบดัชนีรายคณะ', function () {
+    ['dean','facility','vice_president','assistant_president','vice_president_sup','president','admin'].forEach(function (r) {
+      eq_(canCompareFaculties_({ registered:true, role:r }), true, r + ' ต้องดูได้');
+    });
+    ['reporter','supervisor','office_head','deputy_dean','safety_committee','faculty_admin'].forEach(function (r) {
+      eq_(canCompareFaculties_({ registered:true, role:r }), false, r + ' ต้องดูไม่ได้');
+    });
+    validateApiRequest_({ apiVersion:API_VERSION, action:'report.facultyIndex', payload:{} });
+    return throws_('VALIDATION_FAILED', function () {
+      validateApiRequest_({ apiVersion:API_VERSION, action:'report.facultyIndex', payload:{ faculty:'x' } });
+    });
+  });
+
+  t_('ผู้บริหารมหาวิทยาลัยเห็นรายงานภาพรวมทุกระดับ', function () {
+    var bad = ['vice_president','assistant_president','vice_president_sup','president'].filter(function (r) {
+      return !isRole_(r) || ROLES[r].scope !== 'all' || ROLES[r].level3Only || !ROLES[r].can.safetyIndex;
+    });
+    return ok_(bad.length === 0, 'บทบาทที่ยังถูกจำกัด: ' + bad.join(', '));
   });
 
   /* ตัวหารต้องเป็นประชากรกลุ่มเดียวกับตัวตั้งเสมอ ไม่งั้นอัตราที่ได้ไม่มีความหมาย */
@@ -769,7 +800,7 @@ function unitStructure_() {
 
   t_('สิทธิ์อ่านเรื่องอ่อนไหวกำหนดที่ธง sensitiveAccess จุดเดียว', function () {
     var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].sensitiveAccess; }).sort();
-    eq_(holders, ['dean','deputy_dean','deputy_dean_sup','office_head','president','vice_president','vice_president_sup'], 'บทบาทที่มีธง');
+    eq_(holders, ['assistant_president','dean','deputy_dean','deputy_dean_sup','office_head','president','vice_president','vice_president_sup'], 'บทบาทที่มีธง');
     var narrow = holders.filter(function (r) { return ['faculty','all'].indexOf(ROLES[r].scope) < 0; });
     ok_(narrow.length === 0, 'ธงนี้ควรอยู่กับบทบาทระดับคณะหรือมหาวิทยาลัยเท่านั้น: ' + narrow.join(', '));
     return ok_(String(scoped_).indexOf("'office_head','deputy_dean_sup'") < 0, 'scoped_ ยังเขียนรายชื่อบทบาทเองอยู่');
