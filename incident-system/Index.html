@@ -546,20 +546,21 @@ textarea{min-height:92px;resize:vertical}
 .afr{display:grid;grid-template-columns:repeat(3,minmax(0,205px)) minmax(0,1fr);gap:0;border:1px solid var(--line);
  border-radius:15px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
 .afr-main{position:relative;overflow:hidden;padding:24px 26px;color:var(--ink);
- background:#EDF0F2;border-right:1px solid var(--line)}
-.afr-main::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#5A6874}
+ background:#F5EEE8;border-right:1px solid var(--line)}   /* IFR สีน้ำตาล (2.8.4) */
+.afr-main::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#8E4B12}
 .afr-main .cap{position:relative;z-index:1;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.15em;
- text-transform:uppercase;color:#5A6874;font-weight:600;margin-bottom:10px}
+ text-transform:uppercase;color:#8E4B12;font-weight:600;margin-bottom:10px}
 .afr-main.isr{background:#FDEEDC;color:#7A3F0A}
 .afr-main.pdfr{background:#E8F1F7;color:#14405E}
 .afr-main.pdfr::before{background:#2E86C1}
 .afr-main.pdfr .cap{color:#2E86C1}
+.afr-main.pdfr .big{color:#5A6874}
 .afr-main.isr::before{background:#D96C0C}
 .afr-main.isr .cap{color:var(--saed-dark)}
 .afr-main.isr .unit{color:#8A5A2A}
 .afr-main.isr .fx{color:#9B6B36;border-top-color:rgba(194,94,12,.22)}
 .afr-main .big{position:relative;z-index:1;font-family:var(--font-display);font-size:46px;font-weight:700;
- line-height:.98;letter-spacing:-.03em;color:#5A6874}
+ line-height:.98;letter-spacing:-.03em;color:#8E4B12}
 .afr-main.isr .big{color:#D96C0C}
 .afr-main .unit{position:relative;z-index:1;font-size:12.5px;color:#54636F;margin-top:9px;line-height:1.65}
 .afr-main .fx{position:relative;z-index:1;margin-top:14px;padding-top:13px;border-top:1px solid rgba(90,104,116,.22);
@@ -2058,10 +2059,10 @@ function idxTrendChart(rows,months,uid){
   <line x1="${pl}" y1="${H-pb}" x2="${W-pr}" y2="${H-pb}" stroke="var(--steel-2)" stroke-width="1.5"/>
   <path d="${path(pts.map(q=>q.isr),yS)}" fill="none" stroke="#D96C0C" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 3"/>
   <path d="${path(pts.map(q=>q.pdfr),yI)}" fill="none" stroke="#2E86C1" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="2 3"/>
-  <path d="${path(pts.map(q=>q.ifr),yI)}" fill="none" stroke="#5A6874" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-  ${dots(pts.map(q=>q.isr),yS,"#D96C0C")}${dots(pts.map(q=>q.pdfr),yI,"#2E86C1")}${dots(pts.map(q=>q.ifr),yI,"#5A6874")}
+  <path d="${path(pts.map(q=>q.ifr),yI)}" fill="none" stroke="#8E4B12" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+  ${dots(pts.map(q=>q.isr),yS,"#D96C0C")}${dots(pts.map(q=>q.pdfr),yI,"#2E86C1")}${dots(pts.map(q=>q.ifr),yI,"#8E4B12")}
   ${labs}${hit}</svg>
- <div class="legend"><span><i style="background:#5A6874"></i>IFR · อัตราความถี่การบาดเจ็บ (แกนซ้าย)</span>
+ <div class="legend"><span><i style="background:#8E4B12"></i>IFR · อัตราความถี่การบาดเจ็บ (แกนซ้าย)</span>
   <span><i style="background:#2E86C1"></i>PDFR · อัตราความถี่ความเสียหายทางทรัพย์สิน (แกนซ้าย)</span>
   <span><i style="background:#D96C0C"></i>ISR · อัตราความรุนแรงของการบาดเจ็บ (แกนขวา)</span></div>
  ${empty?`<div class="note" style="margin-top:10px">ในช่วงนี้ยังไม่มีอุบัติเหตุที่มีผู้บาดเจ็บในขอบเขตที่ท่านเข้าถึงได้ เส้นทั้งสองจึงอยู่ที่ศูนย์</div>`:""}`;
@@ -2075,7 +2076,7 @@ function idxTrendChart(rows,months,uid){
 let FIX=null,FIX_STATE="idle",FIX_ERR="";
 let FIX_VIEW="year",FIX_YEARTYPE="fiscal",FIX_PERIOD="",FIX_METRIC="ifr",FIX_GROUP="";
 const FIX_METRICS={
- ifr:{k:"IFR",t:"อัตราความถี่การบาดเจ็บ",c:"#5A6874",n:"inj",u:"ราย"},
+ ifr:{k:"IFR",t:"อัตราความถี่การบาดเจ็บ",c:"#8E4B12",n:"inj",u:"ราย"},
  isr:{k:"ISR",t:"อัตราความรุนแรงของการบาดเจ็บ",c:"#D96C0C",n:"lost",u:"วันหยุดงาน"},
  pdfr:{k:"PDFR",t:"อัตราความถี่ความเสียหายทางทรัพย์สิน",c:"#2E86C1",n:"pd",u:"เรื่อง"}};
 function canCompareFaculties(){const r=ROLES[ME.role];return !!(r&&(r.can.safetyIndex||r.can.admin))}
@@ -2305,7 +2306,7 @@ ${ROLES[ME.role].can.safetyIndex?`
  <div class="card"><div class="card-h"><h3>เปรียบเทียบ IFR · PDFR · ISR ${idxMonths(RP_PERIOD)} เดือนล่าสุด</h3>
    <span class="hint">ระดับมหาวิทยาลัย</span></div>
   <div class="card-b">${idxTrendChart(idxRowsMonths(idxMonths(RP_PERIOD)),idxMonths(RP_PERIOD),"ix")}
-   <div class="note" style="margin-top:12px;font-size:12.3px"><b>วิธีอ่านกราฟ</b> เส้นทึบสีเทาคือ <b>IFR</b> บอกว่าเกิดการบาดเจ็บ<b>บ่อยแค่ไหน</b> เส้นประสีน้ำเงินคือ <b>PDFR</b> บอกว่าเกิดความเสียหายทางทรัพย์สิน<b>บ่อยแค่ไหน</b>
+   <div class="note" style="margin-top:12px;font-size:12.3px"><b>วิธีอ่านกราฟ</b> เส้นทึบสีน้ำตาลคือ <b>IFR</b> บอกว่าเกิดการบาดเจ็บ<b>บ่อยแค่ไหน</b> เส้นประสีน้ำเงินคือ <b>PDFR</b> บอกว่าเกิดความเสียหายทางทรัพย์สิน<b>บ่อยแค่ไหน</b>
     ทั้งสองเส้นเป็นจำนวนครั้งต่อชั่วโมงการทำงาน 1,000,000 ชั่วโมงเหมือนกัน จึงใช้<b>แกนซ้ายร่วมกันและเทียบกันได้โดยตรง</b>
     <br>เส้นประสีส้มคือ <b>ISR</b> อ่านค่าจาก<b>แกนขวา</b> บอกว่าเมื่อบาดเจ็บแล้ว<b>รุนแรงแค่ไหน</b> โดยนับเป็นวันหยุดงาน คนละหน่วยกับสองเส้นแรก
     <b>จึงห้ามเทียบความสูงของเส้น ISR กับอีกสองเส้นโดยตรง</b> ให้ดูทิศทางการขึ้นลงแทน
