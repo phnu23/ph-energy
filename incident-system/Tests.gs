@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.1
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.2
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -95,7 +95,9 @@ function unitHeadcount_() {
   /* ถ้าไม่ระบุชั่วโมงทำงานของหน่วยงานนั้น ต้องได้ค่ามาตรฐานกลาง ไม่ใช่ 0
      ถ้าได้ 0 ตัวหารจะเป็นศูนย์ แล้วดัชนีทั้งหน้าจะกลายเป็น "—" ทั้งที่กรอกจำนวนคนไว้แล้ว */
   t_('ชั่วโมงทำงาน/ปี ที่ไม่ได้ระบุใช้ค่ามาตรฐานกลาง', function () {
-    var def = Number(CONFIG.DEFAULT_HOURS_PER_YEAR) || 1920;
+    var def = defaultHoursPerYear_();
+    eq_(def, CONFIG.HOURS_PER_DAY * CONFIG.WORK_DAYS_PER_YEAR, 'ค่ามาตรฐาน = ชั่วโมง/วัน × วันทำงาน/ปี');
+    eq_(CONFIG.HOURS_PER_DAY, 7, 'มาตรฐานรุ่น 2.8.2 คือ 7 ชั่วโมง/วัน');
     eq_(orgHoursPerYear_({ hoursPerYear:0 }), def, 'ไม่ระบุ');
     eq_(orgHoursPerYear_({ hoursPerYear:'' }), def, 'ค่าว่าง');
     eq_(orgHoursPerYear_({}), def, 'ไม่มีฟิลด์เลย');

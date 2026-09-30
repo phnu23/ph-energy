@@ -77,10 +77,13 @@ var CONFIG = {
      ค่านี้กำหนดเพดานเวลาที่หน้าตรวจความพร้อมใช้ เพราะการตรวจต้องคำนวณ HMAC ใหม่ทุกแถวเสมอ
      ที่ 2000 รายการใช้เวลาราว 2-4 วินาที ถ้าตั้งสูงกว่านี้มากหน้าจอจะเริ่มหน่วงจนผู้ดูแลเลิกกดตรวจ */
   AUDIT_KEEP     : 2000,
-  /* ชั่วโมงการทำงานมาตรฐานต่อคนต่อปี ใช้เมื่อชีต OrgHeadcount ไม่ได้ระบุค่าเฉพาะของหน่วยงานนั้น
-     1,920 = 8 ชั่วโมง/วัน × 240 วันทำงาน/ปี ซึ่งเป็นค่าที่ใช้อยู่เดิมในหน้าดัชนีความปลอดภัย
-     ถ้าเปลี่ยนค่านี้ ดัชนี IFR/PDFR/ISR ของทุกหน่วยงานที่ไม่ได้ระบุค่าเองจะเปลี่ยนตามทันที */
-  DEFAULT_HOURS_PER_YEAR : 1920,
+  /* ชั่วโมงการทำงานมาตรฐานต่อคนต่อปี = HOURS_PER_DAY × WORK_DAYS_PER_YEAR (ดู defaultHoursPerYear_)
+     ใช้เมื่อชีต OrgHeadcount ไม่ได้ระบุชั่วโมง/คน/ปีของหน่วยงานนั้น
+     ตั้งแต่รุ่น 2.8.2 ใช้ 7 ชั่วโมง/วัน × 240 วัน = 1,680 ชั่วโมง/คน/ปี (เดิม 8 × 240 = 1,920)
+     ถ้าเปลี่ยนค่านี้ ดัชนี IFR/PDFR/ISR ของทุกหน่วยงานที่ไม่ได้ระบุค่าเองจะเปลี่ยนตามทันที
+     หน่วยงานที่มีบุคลากรหลายแบบ (เข้าเวร พาร์ตไทม์ ฯลฯ) กรอกค่าเฉลี่ยถ่วงน้ำหนักของตนเองในทะเบียนได้ */
+  HOURS_PER_DAY      : 7,
+  WORK_DAYS_PER_YEAR : 240,
   DB_NAME        : 'NU-Incident-DB',
   /* โฟลเดอร์หลักของระบบ — เก็บ NU-Incident-DB, ทะเบียนผู้ใช้, โฟลเดอร์ไฟล์แนบ และสำเนาสำรองไว้ที่เดียว
      เดิมไฟล์ฐานข้อมูลทั้งสองวางลอยอยู่ที่ My Drive โดยตรง หาไม่เจอว่าระบบเก็บข้อมูลไว้ตรงไหน */
@@ -117,13 +120,13 @@ var SHEETS = {
   /* ทะเบียนจำนวนบุคลากรรายหน่วยงาน — ตัวหารของ IFR / PDFR / ISR
      ก่อนรุ่นนี้ค่านี้เก็บอยู่ใน localStorage ของแต่ละเบราว์เซอร์ ผู้บริหารสองคนจึงเห็นดัชนีไม่ตรงกัน
      ทั้งที่ดูข้อมูลชุดเดียวกัน ย้ายมาไว้ที่นี่เพื่อให้มีแหล่งความจริงเดียวทั้งระบบ
-     hoursPerYear เว้นว่างได้ ระบบจะใช้ CONFIG.DEFAULT_HOURS_PER_YEAR แทน */
+     hoursPerYear เว้นว่างได้ ระบบจะใช้ defaultHoursPerYear_() (7 ชม. × 240 วัน) แทน */
   OrgHeadcount: ['faculty','orgUnit','headcount','hoursPerYear','effectiveYear','updatedAt','updatedBy'],
   Audit     : ['t','who','role','act','target','detail','auditId','requestId','outcome','errorCode','beforeHash','afterHash','changes','appVersion','prevEntryHash','entryHash'],
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.1';
+var APP_VERSION = '2.8.2';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -2408,9 +2411,13 @@ function adminCheckUsers_(officialUnits) {
 
 /* ชั่วโมงการทำงานต่อปีของหนึ่งหน่วยงาน — ค่าที่ระบุเองมาก่อน ถ้าไม่ระบุใช้ค่ามาตรฐานกลาง
    คำนวณที่นี่ที่เดียว ทั้งการรวมยอดและการแสดงผลรายแถวต้องเรียกตัวนี้ ห้ามคูณเองซ้ำที่อื่น */
+function defaultHoursPerYear_() {
+  var h = Number(CONFIG.HOURS_PER_DAY) || 7, d = Number(CONFIG.WORK_DAYS_PER_YEAR) || 240;
+  return h * d;
+}
 function orgHoursPerYear_(row) {
   var own = Number(row && row.hoursPerYear) || 0;
-  return own > 0 ? own : (Number(CONFIG.DEFAULT_HOURS_PER_YEAR) || 1920);
+  return own > 0 ? own : defaultHoursPerYear_();
 }
 
 /* คีย์ประจำหน่วยงาน — คณะและหน่วยงานประกอบกันเป็นคีย์ เพราะชื่อหน่วยงานอย่าง "งานธุรการ"
@@ -2465,7 +2472,8 @@ function orgHeadcountList_() {
   return { rows:out, scope:ROLES[u.role].scope, faculty:u.faculty, orgUnit:u.orgUnit,
            units:out.length, configured:out.filter(function (r) { return r.headcount > 0; }).length,
            totalHeadcount:totalPeople, totalHoursPerYear:totalHours,
-           defaultHoursPerYear:Number(CONFIG.DEFAULT_HOURS_PER_YEAR) || 1920,
+           defaultHoursPerYear:defaultHoursPerYear_(),
+           hoursPerDay:Number(CONFIG.HOURS_PER_DAY) || 7, workDaysPerYear:Number(CONFIG.WORK_DAYS_PER_YEAR) || 240,
            canEdit:canEditHeadcount_(u) };
 }
 
@@ -2633,7 +2641,7 @@ function reportFacultyIndex_() {
   });
   var rows = Object.keys(fac).sort().map(function (k) { return fac[k]; });
   return { faculties:rows, ownFaculty:String(u.faculty || '').trim(),
-           defaultHoursPerYear:Number(CONFIG.DEFAULT_HOURS_PER_YEAR) || 1920,
+           defaultHoursPerYear:defaultHoursPerYear_(),
            generatedAt:now_() };
 }
 

@@ -597,6 +597,15 @@ textarea{min-height:92px;resize:vertical}
 .hc-in{width:96px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);
  font-family:var(--font-mono);font-size:13px;color:var(--ink);text-align:right}
 .hc-in:focus{outline:0;border-color:var(--saed);box-shadow:0 0 0 3px var(--saed-tint)}
+.hc-help{margin:0 0 12px;border:1px solid var(--line-2);border-radius:9px;background:var(--paper)}
+.hc-help>summary{cursor:pointer;padding:9px 12px;font-size:12.6px;font-weight:600;color:var(--saed-dark)}
+.hc-help-b{padding:0 12px 12px;font-size:12.3px;line-height:1.7;color:var(--ink-2)}
+.hc-help-b p{margin:0 0 8px}
+.hc-help .r{text-align:right}
+.hc-ex{background:var(--surface);border-radius:8px}
+.hc-calc{margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:9px;background:var(--surface)}
+.hc-in-s{width:70px}.hc-in-t{width:190px;text-align:left}
+.hc-calc-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .hc-bar{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-top:12px;
  font-size:12.5px;color:var(--saed)}
 @media print{.hc-box{display:none}}                       /* ตารางแก้ไขไม่ต้องติดไปกับรายงานที่พิมพ์ */
@@ -616,6 +625,11 @@ textarea{min-height:92px;resize:vertical}
 .fx-fill{height:100%;border-radius:0 4px 4px 0}
 .fx-ref{position:absolute;top:-3px;bottom:-3px;border-left:2px dashed var(--ink);pointer-events:none}
 .fx-n{text-align:right;color:var(--ink-2);font-size:12.5px}
+.fx-group{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between;margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink)}
+.fx-group:first-of-type{margin-top:4px}
+.fx-group span{font-size:12px;color:var(--steel)}
+.fx-none{font-size:12px;color:var(--steel-2);margin:0 0 6px}
+.fx-sub{display:block;font-size:11px;color:var(--steel-2)}
 .fx-data{margin-top:12px}
 .fx-data>summary{cursor:pointer;font-size:12.8px;font-weight:600;color:var(--ink-2);padding:6px 0}
 .fx-card .r{text-align:right}
@@ -1697,7 +1711,7 @@ function hcSet(i,field,v){
  if(tot){const d=ORG_HC_DIRTY[k];
   const hc=d.headcount!==undefined?Number(d.headcount)||0:Number(r.headcount)||0;
   const hp=d.hoursPerYear!==undefined?Number(d.hoursPerYear)||0:Number(r.hoursPerYear)||0;
-  tot.textContent=hc>0?(hc*(hp>0?hp:(ORG_HC.defaultHoursPerYear||1920))).toLocaleString("en-US"):"—"}
+  tot.textContent=hc>0?(hc*(hp>0?hp:(ORG_HC.defaultHoursPerYear||1680))).toLocaleString("en-US"):"—"}
  const b=document.getElementById("hcSaveBar");
  if(b)b.style.visibility=Object.keys(ORG_HC_DIRTY).length?"visible":"hidden";
 }
@@ -1737,33 +1751,102 @@ function hcSaveAll(){
   rerenderReport();
  },function(){BUSY=false});
 }
+/* ---- วิธีคำนวณชั่วโมงการทำงาน และตัวช่วยคำนวณสำหรับหน่วยงานที่มีบุคลากรหลายแบบ (รุ่น 2.8.2) ----
+   ทะเบียนเก็บ "จำนวนคน" กับ "ชั่วโมง/คน/ปี" ของหน่วยงาน ถ้าในหน่วยงานมีคนทำงานหลายรูปแบบ
+   ให้ใช้ค่าเฉลี่ยถ่วงน้ำหนัก = ชั่วโมงรวมทุกกลุ่ม ÷ จำนวนคนทั้งหมด ผลคูณกลับจึงได้ชั่วโมงรวมเท่าเดิม */
+/* ค่าที่พิมพ์ค้างไว้ยังไม่บันทึกต้องไม่หายเมื่อหน้ารายงานถูกวาดใหม่ (เช่น กดเพิ่มกลุ่มในตัวช่วยคำนวณ) */
+function hcVal(r,k){const d=ORG_HC_DIRTY[hcKey(r.faculty,r.orgUnit)];const v=d&&d[k]!==undefined?d[k]:r[k];return v||""}
+let HC_CALC=null;
+function hcCalcInit(hpd,wdy){if(!HC_CALC)HC_CALC=[
+ {t:"บุคลากรเต็มเวลา",n:"",h:hpd,d:wdy},{t:"เข้าเวร/กะ",n:"",h:8,d:250},{t:"พาร์ตไทม์/ลูกจ้างรายชั่วโมง",n:"",h:4,d:wdy}]}
+function hcCalcResult(){
+ const g=(HC_CALC||[]).map(x=>({n:Math.max(0,Number(x.n)||0),h:Math.max(0,Number(x.h)||0),d:Math.max(0,Number(x.d)||0)}));
+ const people=g.reduce((a,x)=>a+x.n,0), hours=g.reduce((a,x)=>a+x.n*x.h*x.d,0);
+ return {people:people,hours:hours,avg:people?Math.round(hours/people):0,g:g};
+}
+function hcCalcSet(i,k,v){if(!HC_CALC[i])return;HC_CALC[i][k]=v;hcCalcPaint()}
+function hcCalcAdd(){HC_CALC.push({t:"กลุ่มอื่น",n:"",h:7,d:240});rerenderReport()}
+function hcCalcPaint(){
+ const r=hcCalcResult(), f=n=>Math.round(n).toLocaleString("en-US");
+ r.g.forEach((x,i)=>{const e=document.getElementById("hcCs"+i);if(e)e.textContent=x.n?f(x.n*x.h*x.d):"—"});
+ const o=document.getElementById("hcCalcOut");
+ if(o)o.innerHTML=r.people?`รวม <b>${f(r.people)} คน</b> · ชั่วโมงรวม <b>${f(r.hours)}</b> ชม./ปี
+   → ชั่วโมงเฉลี่ย <b>${f(r.hours)} ÷ ${f(r.people)} = ${f(r.avg)}</b> ชม./คน/ปี`:"กรอกจำนวนคนอย่างน้อยหนึ่งกลุ่ม";
+}
+function hcCalcApply(){
+ const r=hcCalcResult(), sel=document.getElementById("hcCalcRow"), i=sel?Number(sel.value):0;
+ if(!r.people){toast("กรอกจำนวนคนในตัวช่วยคำนวณก่อน");return}
+ if(r.avg<100){toast("ชั่วโมงเฉลี่ยต่ำกว่า 100 ชม./คน/ปี ระบบจะไม่รับค่า กรุณาตรวจสอบ");return}
+ const h=document.getElementById("hcH"+i), p=document.getElementById("hcP"+i);
+ if(h)h.value=r.people; if(p)p.value=r.avg;
+ hcSet(i,"headcount",String(r.people)); hcSet(i,"hoursPerYear",String(r.avg));
+ toast("ใส่ค่าแล้ว กด \"บันทึกทะเบียน\" เพื่อบันทึก");
+}
+function hcHelp(def,hpd,wdy,rows){
+ hcCalcInit(hpd,wdy);
+ const f=n=>Math.round(n).toLocaleString("en-US");
+ const ex=[["บุคลากรสายวิชาการ/สายสนับสนุน เต็มเวลา",hpd,wdy,"เว้นว่างได้ ใช้ค่ามาตรฐาน"],
+  ["พยาบาล/เจ้าหน้าที่เข้าเวร (กะละ 8 ชม.)",8,250,"กรอกเองถ้าเป็นกลุ่มหลักของหน่วยงาน"],
+  ["ลูกจ้างครึ่งวัน/พาร์ตไทม์",4,wdy,""],
+  ["ผู้ช่วยวิจัย/นิสิตช่วยงาน (3 วัน/สัปดาห์ × 40 สัปดาห์)",4,120,""]];
+ const mix=[[40,hpd,wdy],[10,8,250],[6,4,wdy]];
+ const mixP=mix.reduce((a,x)=>a+x[0],0), mixH=mix.reduce((a,x)=>a+x[0]*x[1]*x[2],0);
+ const R=hcCalcResult();
+ return `<details class="hc-help"><summary>วิธีคำนวณชั่วโมงการทำงาน และตัวอย่างสำหรับบุคลากรหลายรูปแบบ</summary>
+  <div class="hc-help-b">
+   <p><b>สูตร</b> ชั่วโมง/คน/ปี = ชั่วโมงทำงานต่อวัน × จำนวนวันทำงานต่อปี · ค่ามาตรฐานของระบบ = ${hpd} × ${wdy} = <b>${f(def)}</b> ชม./คน/ปี
+    <br>ชั่วโมงรวมของหน่วยงาน/ปี = จำนวนบุคลากร × ชั่วโมง/คน/ปี · ดัชนีของช่วงเวลาใดใช้ชั่วโมงตามสัดส่วนเดือน (1 เดือน = ÷ 12)</p>
+   <div class="tbl-wrap"><table class="hc-tbl hc-ex"><thead><tr><th>ตัวอย่างกลุ่มบุคลากร</th><th class="r">ชม./วัน</th><th class="r">วัน/ปี</th><th class="r">ชม./คน/ปี</th><th></th></tr></thead><tbody>
+    ${ex.map(x=>`<tr><td>${x[0]}</td><td class="r mono">${x[1]}</td><td class="r mono">${x[2]}</td><td class="r mono"><b>${f(x[1]*x[2])}</b></td><td style="color:var(--steel);font-size:11.5px">${x[3]}</td></tr>`).join("")}
+   </tbody></table></div>
+   <p style="margin-top:10px"><b>หน่วยงานที่มีบุคลากรหลายรูปแบบ</b> ให้กรอก <b>จำนวนคนทั้งหมด</b> และ <b>ชั่วโมงเฉลี่ยถ่วงน้ำหนัก</b> เช่น<br>
+    ${mix.map(x=>`${x[0]} คน × ${x[1]} ชม. × ${x[2]} วัน = ${f(x[0]*x[1]*x[2])}`).join("<br>")}<br>
+    รวม ${mixP} คน · ${f(mixH)} ชม./ปี → ชั่วโมงเฉลี่ย ${f(mixH)} ÷ ${mixP} = <b>${f(Math.round(mixH/mixP))}</b> ชม./คน/ปี
+    → กรอก บุคลากร <b>${mixP}</b> คน และชั่วโมง/คน/ปี <b>${f(Math.round(mixH/mixP))}</b>
+    <br><span style="color:var(--steel)">หรือแยกกรอกเป็นแถวหน่วยงานย่อยตามกลุ่มก็ได้ (ห้ามกรอกทั้งแถว "ทั้งหน่วยงาน" และแถวหน่วยงานย่อยของคณะเดียวกันพร้อมกัน)</span></p>
+   <div class="hc-calc"><b>ตัวช่วยคำนวณ</b>
+    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>กลุ่มบุคลากร</th><th class="r">จำนวนคน</th><th class="r">ชม./วัน</th><th class="r">วัน/ปี</th><th class="r">ชั่วโมงรวม/ปี</th></tr></thead><tbody>
+    ${HC_CALC.map((x,i)=>`<tr><td><input class="hc-in hc-in-t" value="${esc(x.t)}" aria-label="ชื่อกลุ่ม" oninput="hcCalcSet(${i},'t',this.value)"></td>
+      <td class="r"><input class="hc-in" type="number" min="0" step="1" value="${esc(String(x.n))}" placeholder="0" aria-label="จำนวนคน" oninput="hcCalcSet(${i},'n',this.value)"></td>
+      <td class="r"><input class="hc-in hc-in-s" type="number" min="0" max="24" step="0.5" value="${esc(String(x.h))}" aria-label="ชั่วโมงต่อวัน" oninput="hcCalcSet(${i},'h',this.value)"></td>
+      <td class="r"><input class="hc-in hc-in-s" type="number" min="0" max="366" step="1" value="${esc(String(x.d))}" aria-label="วันต่อปี" oninput="hcCalcSet(${i},'d',this.value)"></td>
+      <td class="r mono" id="hcCs${i}">${R.g[i]&&R.g[i].n?f(R.g[i].n*R.g[i].h*R.g[i].d):"—"}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="hc-calc-bar"><button class="btn" onclick="hcCalcAdd()">+ เพิ่มกลุ่ม</button>
+     <span id="hcCalcOut" style="flex:1">${R.people?`รวม <b>${f(R.people)} คน</b> · ชั่วโมงรวม <b>${f(R.hours)}</b> ชม./ปี → ชั่วโมงเฉลี่ย <b>${f(R.hours)} ÷ ${f(R.people)} = ${f(R.avg)}</b> ชม./คน/ปี`:"กรอกจำนวนคนอย่างน้อยหนึ่งกลุ่ม"}</span>
+     <select id="hcCalcRow" class="fx-sel" aria-label="แถวที่จะใส่ค่า">${rows.map((r,i)=>`<option value="${i}">${esc(r.faculty)}${r.orgUnit?" · "+esc(r.orgUnit):""}</option>`).join("")}</select>
+     <button class="btn btn-p" onclick="hcCalcApply()">ใส่ค่าลงทะเบียน</button></div>
+   </div>
+  </div></details>`;
+}
 function hcPanel(){
  if(!(ORG_HC&&ORG_HC.canEdit))return "";
  const rows=hcEditRows();
  HC_ROWS=rows;
- const def=(ORG_HC.defaultHoursPerYear||1920);
+ const def=(ORG_HC.defaultHoursPerYear||1680), hpd=ORG_HC.hoursPerDay||7, wdy=ORG_HC.workDaysPerYear||240;
  return `<details class="hc-box" ${orgReady()?"":"open"}>
   <summary>ทะเบียนจำนวนบุคลากรและชั่วโมงการทำงาน · กรอกแล้ว ${ORG_HC.configured} จาก ${rows.length} หน่วยงาน</summary>
   <div class="hc-body">
    <div class="note" style="margin:0 0 10px;font-size:12.3px">จำนวนบุคลากรนี้เก็บไว้ที่ฐานข้อมูลกลาง ทุกคนที่เปิดรายงานจึงเห็นดัชนีตรงกัน
-    ช่องชั่วโมงทำงาน/ปี เว้นว่างได้ ระบบจะใช้ค่ามาตรฐาน ${def.toLocaleString("en-US")} ชั่วโมง (8 ชั่วโมง × 240 วัน)
+    ช่องชั่วโมง/คน/ปี เว้นว่างได้ ระบบจะใช้ค่ามาตรฐาน <b>${def.toLocaleString("en-US")} ชั่วโมง (${hpd} ชั่วโมง/วัน × ${wdy} วัน)</b>
     ${ORG_HC.scope==="all"?"กรอกที่ระดับคณะ/หน่วยงาน ห้ามกรอกทั้งระดับคณะและระดับหน่วยงานย่อยของคณะเดียวกันพร้อมกัน เพราะจะนับคนซ้ำ"
       :"แต่ละคณะ/กองกรอกและปรับปรุงจำนวนบุคลากรและชั่วโมงการทำงานของตนเองได้ ท่านแก้ไขได้เฉพาะ <b>"+esc(userFaculty(ME))+"</b>"}</div>
+   ${hcHelp(def,hpd,wdy,rows)}
    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr>
     <th>คณะ/หน่วยงาน</th><th>หน่วยงานย่อย</th><th style="text-align:right">บุคลากร (คน)</th>
     <th style="text-align:right">ชั่วโมง/คน/ปี</th><th style="text-align:right">รวมชั่วโมง/ปี</th><th>แก้ไขล่าสุด</th></tr></thead><tbody>
    ${rows.map((r,i)=>`<tr class="${r.headcount>0?"":"hc-empty"}">
     <td>${esc(r.faculty)}</td>
     <td style="color:var(--steel)">${r.orgUnit?esc(r.orgUnit):"— ทั้งหน่วยงาน —"}</td>
-    <td style="text-align:right"><input class="hc-in" type="number" min="0" step="1" value="${r.headcount||""}" placeholder="0"
+    <td style="text-align:right"><input class="hc-in" id="hcH${i}" type="number" min="0" step="1" value="${hcVal(r,"headcount")}" placeholder="0"
       aria-label="จำนวนบุคลากรของ ${esc(r.faculty)}" oninput="hcSet(${i},'headcount',this.value)"></td>
-    <td style="text-align:right"><input class="hc-in" type="number" min="0" step="10" value="${r.hoursPerYear||""}" placeholder="${def}"
+    <td style="text-align:right"><input class="hc-in" id="hcP${i}" type="number" min="0" step="10" value="${hcVal(r,"hoursPerYear")}" placeholder="${def}"
       aria-label="ชั่วโมงทำงานต่อปีของ ${esc(r.faculty)}" oninput="hcSet(${i},'hoursPerYear',this.value)"></td>
     <td id="hcTot${i}" class="mono" style="text-align:right;color:var(--ink-2)">${r.headcount>0?(r.headcount*(r.hoursPerYear>0?r.hoursPerYear:def)).toLocaleString("en-US"):"—"}</td>
     <td style="font-size:11.5px;color:var(--steel-2)">${r.updatedAt?esc(r.updatedAt)+" · "+esc(r.updatedBy):"ยังไม่เคยกรอก"}</td>
    </tr>`).join("")}
    </tbody></table></div>
-   <div id="hcSaveBar" class="hc-bar" style="visibility:hidden">
+   <div id="hcSaveBar" class="hc-bar" style="visibility:${Object.keys(ORG_HC_DIRTY).length?"visible":"hidden"}">
     <span>มีการแก้ไขที่ยังไม่ได้บันทึก</span>
     <button class="btn" onclick="ORG_HC_DIRTY={};rerenderReport()">ยกเลิก</button>
     <button class="btn btn-p" onclick="hcSaveAll()">บันทึกทะเบียน</button>
@@ -1929,7 +2012,7 @@ function idxTrendChart(rows,months,uid){
    คิดตามสัดส่วนจำนวนเดือนในช่วงที่เลือก (รายเดือน = 1/12 ของปี รายปี = จำนวนเดือนที่ผ่านไปแล้วในปีนั้น)
    ใช้แกนเดียวและแสดงทีละดัชนี เพราะ ISR คนละหน่วยกับ IFR/PDFR เทียบความยาวแท่งข้ามกันไม่ได้ */
 let FIX=null,FIX_STATE="idle",FIX_ERR="";
-let FIX_VIEW="year",FIX_YEARTYPE="fiscal",FIX_PERIOD="",FIX_METRIC="ifr";
+let FIX_VIEW="year",FIX_YEARTYPE="fiscal",FIX_PERIOD="",FIX_METRIC="ifr",FIX_GROUP="";
 const FIX_METRICS={
  ifr:{k:"IFR",t:"อัตราความถี่การบาดเจ็บ",c:"#5A6874",n:"inj",u:"ราย"},
  isr:{k:"ISR",t:"อัตราความรุนแรงของการบาดเจ็บ",c:"#D96C0C",n:"lost",u:"วันหยุดงาน"},
@@ -1948,6 +2031,7 @@ function setFix(k,v){
  if(k==="yeartype"){FIX_YEARTYPE=v;FIX_PERIOD=""}
  if(k==="period")FIX_PERIOD=v;
  if(k==="metric")FIX_METRIC=v;
+ if(k==="group")FIX_GROUP=v;
  rerenderReport();
 }
 /* เดือนทั้งหมดที่มีข้อมูล ไปจนถึงเดือนปัจจุบัน */
@@ -1976,6 +2060,17 @@ function fixPeriodMonths(p){
  const y=+p, from=FIX_YEARTYPE==="fiscal"?(y-1)+"-10":y+"-01", to=FIX_YEARTYPE==="fiscal"?y+"-09":y+"-12";
  return fixMonthsBetween(from,to<now?to:now);
 }
+/* คลัสเตอร์ของคณะ อ้างอิงกลุ่มใน ORG จุดเดียว หน่วยงานที่ไม่อยู่ในผังรวมไว้ในกลุ่ม "อื่น ๆ" */
+const FIX_OTHER={id:"OT",name:"หน่วยงานอื่นนอกผังหน่วยงาน"};
+function fixGroupOf(f){const u=ALL_UNITS.find(x=>x.unit===f);return u?{id:u.gid,name:u.group}:FIX_OTHER}
+function fixIdx(inj,lost,pd,hours){const ok=hours>0;
+ return {ready:ok,ifr:ok?inj*1e6/hours:null,isr:ok?lost*1e6/hours:null,pdfr:ok?pd*1e6/hours:null}}
+/* ค่ารวมของกลุ่มใด ๆ นับเฉพาะคณะที่มีชั่วโมงแล้ว ตัวตั้งกับตัวหารจึงเป็นประชากรกลุ่มเดียวกัน */
+function fixAgg(rows){
+ const r=rows.filter(x=>x.ready), H=r.reduce((a,x)=>a+x.hours,0), sum=k=>r.reduce((a,x)=>a+x[k],0);
+ return Object.assign({hours:H,headcount:sum("headcount"),inj:sum("inj"),lost:sum("lost"),pd:sum("pd"),units:r.length,total:rows.length},
+  fixIdx(sum("inj"),sum("lost"),sum("pd"),H));
+}
 function fixCompute(months){
  const n=months.length;
  const known=new Set(((FIX&&FIX.faculties)||[]).map(f=>f.faculty));
@@ -1985,15 +2080,12 @@ function fixCompute(months){
  const rows=list.map(f=>{
   let inj=0,lost=0,pd=0;
   months.forEach(m=>{const x=(f.months||{})[m];if(x){inj+=x.inj;lost+=x.lost;pd+=x.pd}});
-  const hours=(Number(f.hoursPerYear)||0)*n/12, ready=hours>0;
-  return {faculty:f.faculty,headcount:f.headcount||0,hours:hours,inj:inj,lost:lost,pd:pd,ready:ready,
-          ifr:ready?inj*1e6/hours:null,isr:ready?lost*1e6/hours:null,pdfr:ready?pd*1e6/hours:null};
+  const hours=(Number(f.hoursPerYear)||0)*n/12, g=fixGroupOf(f.faculty);
+  return Object.assign({faculty:f.faculty,gid:g.id,group:g.name,headcount:f.headcount||0,hours:hours,inj:inj,lost:lost,pd:pd},fixIdx(inj,lost,pd,hours));
  });
- /* ค่ารวมมหาวิทยาลัยนับเฉพาะคณะที่มีชั่วโมงแล้ว ตัวตั้งกับตัวหารจึงเป็นประชากรกลุ่มเดียวกัน */
- const r=rows.filter(x=>x.ready), H=r.reduce((a,x)=>a+x.hours,0);
- const sum=k=>r.reduce((a,x)=>a+x[k],0);
- const uni=H>0?{ifr:sum("inj")*1e6/H,isr:sum("lost")*1e6/H,pdfr:sum("pd")*1e6/H,hours:H}:null;
- return {rows:rows,uni:uni};
+ const groups=ORG.concat([FIX_OTHER]).map(g=>{const rs=rows.filter(x=>x.gid===g.id);
+  return Object.assign({id:g.id,name:g.name,rows:rs},fixAgg(rs))}).filter(g=>g.rows.length);
+ return {rows:rows,groups:groups,uni:fixAgg(rows)};
 }
 function fixPanel(){
  if(FIX_STATE==="idle")setTimeout(function(){loadFacultyIndex()},0);
@@ -2004,30 +2096,56 @@ function fixPanel(){
  if(!opts.some(o=>o.v===FIX_PERIOD))FIX_PERIOD=opts.length?opts[0].v:"";
  const plabel=(opts.find(o=>o.v===FIX_PERIOD)||{l:"—"}).l;
  const months=fixPeriodMonths(FIX_PERIOD), res=fixCompute(months), M=FIX_METRICS[FIX_METRIC];
- const own=String(FIX.ownFaculty||"").trim();
- const ready=res.rows.filter(x=>x.ready).sort((a,b)=>b[FIX_METRIC]-a[FIX_METRIC]||b[M.n]-a[M.n]||a.faculty.localeCompare(b.faculty,"th"));
- const missing=res.rows.filter(x=>!x.ready).sort((a,b)=>a.faculty.localeCompare(b.faculty,"th"));
- const uniV=res.uni?res.uni[FIX_METRIC]:null;
- const max=Math.max(uniV||0,...ready.map(x=>x[FIX_METRIC]))||1;
+ if(FIX_GROUP&&FIX_GROUP!=="__cmp"&&!res.groups.some(g=>g.id===FIX_GROUP))FIX_GROUP="";
+ const own=String(FIX.ownFaculty||"").trim(), ownG=own?fixGroupOf(own).id:"";
  const fmt=v=>v===null||v===undefined?"—":v.toFixed(2);
  const fmtN=n=>Math.round(n).toLocaleString("en-US");
+ const byMetric=(a,b)=>b[FIX_METRIC]-a[FIX_METRIC]||b[M.n]-a[M.n]||String(a.faculty||a.name).localeCompare(String(b.faculty||b.name),"th");
+ const uniV=res.uni.ready?res.uni[FIX_METRIC]:null;
+ const cmp=FIX_GROUP==="__cmp", one=cmp?null:res.groups.find(g=>g.id===FIX_GROUP)||null;
+ const shownGroups=one?[one]:res.groups;
+ /* แกนเดียวทุกแท่งในมุมมองเดียวกัน ความยาวแท่งจึงเทียบข้ามคลัสเตอร์ได้ตรง ๆ */
+ const vals=cmp?res.groups.filter(g=>g.ready).map(g=>g[FIX_METRIC])
+  :shownGroups.flatMap(g=>g.rows.filter(x=>x.ready).map(x=>x[FIX_METRIC]).concat(g.ready?[g[FIX_METRIC]]:[]));
+ const max=Math.max(uniV||0,...vals)||1;
  const refPct=uniV!==null?(uniV/max*100).toFixed(1):null;
- const bars=ready.length?ready.map(x=>{
-  const v=x[FIX_METRIC], mine=own&&x.faculty===own;
-  const tip=`${x.faculty} · ${M.k} ${fmt(v)} · ${M.t} (${x[M.n]} ${M.u}) · ชั่วโมงทำงาน ${fmtN(x.hours)} ชม. ในช่วง ${months.length} เดือน`;
-  return `<div class="fx-row${mine?" mine":""}" title="${esc(tip)}">
-   <span class="fx-lab">${esc(x.faculty)}${mine?` <em>คณะของท่าน</em>`:""}</span>
-   <div class="fx-track">${v>0?`<div class="fx-fill" style="width:${Math.max(.6,v/max*100).toFixed(1)}%;background:${M.c}"></div>`:""}
+ const bar=(label,v,tip,cls,tag,color)=>`<div class="fx-row ${cls||""}" title="${esc(tip)}">
+   <span class="fx-lab">${label}${tag||""}</span>
+   <div class="fx-track">${v>0?`<div class="fx-fill" style="width:${Math.max(.6,v/max*100).toFixed(1)}%;background:${color||M.c}"></div>`:""}
     ${refPct!==null?`<i class="fx-ref" style="left:${refPct}%"></i>`:""}</div>
-   <span class="fx-n mono">${fmt(v)}</span></div>`}).join("")
-  :`<div class="empty"><b>ยังเปรียบเทียบไม่ได้</b>ยังไม่มีคณะใดกรอกจำนวนบุคลากรและชั่วโมงการทำงาน</div>`;
- const tbl=ready.concat(missing).map(x=>`<tr${own&&x.faculty===own?' class="mine"':""}><td>${esc(x.faculty)}</td>
+   <span class="fx-n mono">${fmt(v)}</span></div>`;
+ const facTip=x=>`${x.faculty} (${x.group}) · ${M.k} ${fmt(x[FIX_METRIC])} · ${x[M.n]} ${M.u} · ชั่วโมงทำงาน ${fmtN(x.hours)} ชม. ในช่วง ${months.length} เดือน`;
+ const grpTip=g=>`${g.name} · ${M.k} รวมคลัสเตอร์ ${fmt(g[FIX_METRIC])} · ${g[M.n]} ${M.u} · ${g.units} จาก ${g.total} หน่วยงานมีชั่วโมง · ${fmtN(g.hours)} ชม.`;
+ let bars="";
+ if(cmp){
+  const rs=res.groups.filter(g=>g.ready).sort(byMetric);
+  bars=rs.length?rs.map(g=>bar(esc(g.name),g[FIX_METRIC],grpTip(g),g.id===ownG?"mine":"",
+    `<small class="fx-sub">${g.units}/${g.total} หน่วยงาน</small>`)).join("")
+   :`<div class="empty"><b>ยังเปรียบเทียบไม่ได้</b>ยังไม่มีคลัสเตอร์ใดที่กรอกชั่วโมงการทำงาน</div>`;
+ } else {
+  bars=shownGroups.map(g=>{
+   const rs=g.rows.filter(x=>x.ready).sort(byMetric);
+   const head=`<div class="fx-group"><b>${esc(g.name)}</b>
+     <span>รวมคลัสเตอร์ ${M.k} <b class="mono">${fmt(g.ready?g[FIX_METRIC]:null)}</b> · มีชั่วโมง ${g.units}/${g.total} หน่วยงาน</span></div>`;
+   const body=rs.length?rs.map(x=>{const mine=own&&x.faculty===own;
+     return bar(esc(x.faculty),x[FIX_METRIC],facTip(x),mine?"mine":"",mine?` <em>คณะของท่าน</em>`:"")}).join("")
+    :`<div class="fx-none">ยังไม่มีหน่วยงานในคลัสเตอร์นี้กรอกชั่วโมงการทำงาน</div>`;
+   return head+body;
+  }).join("");
+ }
+ const scopeRows=one?one.rows:res.rows;
+ const missing=scopeRows.filter(x=>!x.ready).sort((a,b)=>a.faculty.localeCompare(b.faculty,"th"));
+ const missInc=missing.filter(x=>x.inj||x.pd);
+ const tblRows=(cmp?res.groups.slice().sort(byMetric).map(g=>({faculty:g.name,group:"",headcount:g.headcount,hours:g.hours,ready:g.ready,
+   inj:g.inj,lost:g.lost,pd:g.pd,ifr:g.ifr,isr:g.isr,pdfr:g.pdfr,sub:g.units+"/"+g.total}))
+  :shownGroups.flatMap(g=>g.rows.filter(x=>x.ready).sort(byMetric).concat(g.rows.filter(x=>!x.ready))));
+ const tbl=tblRows.map(x=>`<tr${own&&x.faculty===own?' class="mine"':""}><td>${esc(x.faculty)}</td><td style="color:var(--steel)">${esc(cmp?x.sub+" หน่วยงาน":x.group)}</td>
    <td class="mono r">${x.headcount?fmtN(x.headcount):"—"}</td><td class="mono r">${x.ready?fmtN(x.hours):"—"}</td>
    <td class="mono r">${x.inj}</td><td class="mono r"><b>${fmt(x.ifr)}</b></td>
    <td class="mono r">${x.lost}</td><td class="mono r"><b>${fmt(x.isr)}</b></td>
    <td class="mono r">${x.pd}</td><td class="mono r"><b>${fmt(x.pdfr)}</b></td></tr>`).join("");
- const missInc=missing.filter(x=>x.inj||x.pd);
- return `<div class="card fx-card"><div class="card-h"><h3>เปรียบเทียบ ${M.k} รายคณะ · ${esc(plabel)}</h3>
+ const title=cmp?`เปรียบเทียบ ${M.k} ระหว่างคลัสเตอร์`:one?`เปรียบเทียบ ${M.k} · ${esc(one.name)}`:`เปรียบเทียบ ${M.k} รายคณะ แยกตามคลัสเตอร์`;
+ return `<div class="card fx-card"><div class="card-h"><h3>${title} · ${esc(plabel)}</h3>
    <span class="hint">${M.t} ต่อชั่วโมงการทำงาน 1,000,000 ชั่วโมง</span></div>
   <div class="card-b">
    <div class="fx-tools">
@@ -2036,24 +2154,28 @@ function fixPanel(){
       <option value="fiscal"${FIX_YEARTYPE==="fiscal"?" selected":""}>ปีงบประมาณ (ต.ค.–ก.ย.)</option>
       <option value="calendar"${FIX_YEARTYPE==="calendar"?" selected":""}>ปีปฏิทิน (ม.ค.–ธ.ค.)</option></select>`:""}
     <select class="fx-sel" aria-label="ช่วงเวลา" onchange="setFix('period',this.value)">${opts.map(o=>`<option value="${o.v}"${o.v===FIX_PERIOD?" selected":""}>${esc(o.l)}</option>`).join("")}</select>
+    <select class="fx-sel" aria-label="คลัสเตอร์" onchange="setFix('group',this.value)">
+     <option value=""${!FIX_GROUP?" selected":""}>ทุกคลัสเตอร์ (แยกกลุ่ม)</option>
+     <option value="__cmp"${cmp?" selected":""}>เปรียบเทียบระหว่างคลัสเตอร์</option>
+     ${res.groups.map(g=>`<option value="${g.id}"${FIX_GROUP===g.id?" selected":""}>${esc(g.name)}</option>`).join("")}</select>
     <div class="spacer"></div>
     <div class="rp-seg">${Object.keys(FIX_METRICS).map(k=>`<button class="${FIX_METRIC===k?"on":""}" onclick="setFix('metric','${k}')">${FIX_METRICS[k].k}</button>`).join("")}</div>
    </div>
-   <div class="fx-legend"><span><i style="background:${M.c}"></i>${M.k} ของแต่ละคณะ</span>
+   <div class="fx-legend"><span><i style="background:${M.c}"></i>${M.k} ของแต่ละ${cmp?"คลัสเตอร์":"คณะ/หน่วยงาน"}</span>
     ${uniV!==null?`<span><i class="fx-ref-key"></i>ค่ารวมมหาวิทยาลัย <b class="mono">${fmt(uniV)}</b></span>`:""}
-    <span>${months.length} เดือน · ${ready.length} คณะที่มีชั่วโมงการทำงาน</span></div>
+    <span>${months.length} เดือน · ${res.uni.units} หน่วยงานที่มีชั่วโมงการทำงาน</span></div>
    ${bars}
-   ${missing.length?`<div class="note${missInc.length?" warn":""}" style="margin-top:12px;font-size:12.3px">
-     <b>ยังไม่มีชั่วโมงการทำงาน ${missing.length} คณะ/หน่วยงาน</b> จึงยังคำนวณดัชนีไม่ได้
+   ${missing.length&&!cmp?`<div class="note${missInc.length?" warn":""}" style="margin-top:12px;font-size:12.3px">
+     <b>ยังไม่มีชั่วโมงการทำงาน ${missing.length} หน่วยงาน</b> จึงยังคำนวณดัชนีไม่ได้
      ${missInc.length?`— ในจำนวนนี้มีอุบัติเหตุที่นับในช่วงนี้แล้ว: ${missInc.map(x=>esc(x.faculty)).join(", ")}`:""}
      <br>แต่ละคณะ/กองกรอกได้เองที่ "ทะเบียนจำนวนบุคลากรและชั่วโมงการทำงาน" ในการ์ดดัชนีความปลอดภัยด้านบน</div>`:""}
-   <details class="fx-data"><summary>ตารางข้อมูลทุกคณะ (IFR · ISR · PDFR)</summary>
-    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>คณะ/หน่วยงาน</th><th class="r">บุคลากร</th><th class="r">ชั่วโมงในช่วง</th>
+   <details class="fx-data"><summary>ตารางข้อมูล (IFR · ISR · PDFR)</summary>
+    <div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>${cmp?"คลัสเตอร์":"คณะ/หน่วยงาน"}</th><th>${cmp?"มีชั่วโมง":"คลัสเตอร์"}</th><th class="r">บุคลากร</th><th class="r">ชั่วโมงในช่วง</th>
      <th class="r">บาดเจ็บ</th><th class="r">IFR</th><th class="r">วันหยุดงาน</th><th class="r">ISR</th><th class="r">เสียทรัพย์สิน</th><th class="r">PDFR</th></tr></thead>
      <tbody>${tbl}</tbody></table></div></details>
    <div class="note" style="margin-top:12px;font-size:12.3px"><b>วิธีอ่าน</b> แท่งยาวกว่า = ค่าดัชนีสูงกว่า เส้นประแนวตั้งคือค่ารวมทั้งมหาวิทยาลัย
-    คณะที่แท่งเลยเส้นประมีดัชนีสูงกว่าภาพรวม ชี้ที่แท่งเพื่อดูจำนวนที่ใช้คำนวณ
-    ข้อมูลส่วนนี้เป็นตัวเลขรวมรายคณะเท่านั้น ไม่มีรายละเอียดรายเรื่อง และไม่นับเรื่องที่ยกเลิกหรือเหตุการณ์เกือบเกิดอุบัติเหตุ</div>
+    ${cmp?"ค่าของแต่ละคลัสเตอร์คำนวณจากผลรวมของหน่วยงานในคลัสเตอร์ที่กรอกชั่วโมงแล้ว (ไม่ใช่ค่าเฉลี่ยของดัชนีรายคณะ)":"หัวของแต่ละคลัสเตอร์แสดงค่ารวมของคลัสเตอร์นั้น"}
+    ชี้ที่แท่งเพื่อดูจำนวนที่ใช้คำนวณ ข้อมูลส่วนนี้เป็นตัวเลขรวมเท่านั้น ไม่มีรายละเอียดรายเรื่อง และไม่นับเรื่องที่ยกเลิกหรือเหตุการณ์เกือบเกิดอุบัติเหตุ</div>
   </div></div>`;
 }
 
