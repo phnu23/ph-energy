@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.10
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.11
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -169,6 +169,27 @@ function unitHeadcount_() {
     eq_(orgKey_('สำนักงานหอสมุด', ''), orgKey_('สำนักหอสมุด', ''), 'คีย์ทะเบียนบุคลากรต้องเป็นแถวเดียวกัน');
     var cyc = Object.keys(UNIT_ALIASES).filter(function (k) { return UNIT_ALIASES[UNIT_ALIASES[k]]; });
     return ok_(cyc.length === 0, 'ชื่อใหม่ต้องไม่ถูกแปลงซ้ำอีกทอด: ' + cyc.join(', '));
+  });
+
+  /* รุ่น 2.8.11 — ผู้บริหารระดับมหาวิทยาลัยเปิดรายละเอียดได้เฉพาะระดับ 3 ขึ้นไป ระดับ 1–2 ได้เฉพาะแถวสรุป */
+  t_('ผู้บริหารได้รายละเอียดเฉพาะระดับ 3 ขึ้นไป', function () {
+    var list = [{ id:'IR-2569-001', level:4, title:'เรื่องร้ายแรง', detail:'เนื้อหา', reporter:'ก', reporterEmail:'a@nu.ac.th', faculty:'คณะแพทยศาสตร์', cats:[], causes:['คน'], capa:[{ m:'ข้อความมาตรการ', who:'นาย ข', due:'2026-01-01', done:false }] },
+                { id:'IR-2569-002', level:1, title:'เรื่องเล็ก', detail:'เนื้อหาระดับ 1', reporter:'ค', reporterEmail:'c@nu.ac.th', faculty:'คณะแพทยศาสตร์', cats:[], causes:['คน'], capa:[{ m:'ข้อความ', who:'นาย ง', due:'2026-01-01', done:false }] },
+                { id:'IR-2569-003', level:0, suggestLevel:3, title:'ยังไม่ประเมินแต่เสนอระดับ 3', detail:'x', reporterEmail:'d@nu.ac.th', faculty:'คณะแพทยศาสตร์', cats:[] }];
+    ['president','vice_president_sup','vice_president','assistant_president'].forEach(function (role) {
+      var out = scoped_({ registered:true, role:role, email:'exec@nu.ac.th', faculty:'' }, list);
+      var by = {}; out.forEach(function (x) { by[x.id] = x; });
+      eq_(by['IR-2569-001'].title, 'เรื่องร้ายแรง', role + ' เห็นเนื้อหาระดับ 4');
+      ok_(by['IR-2569-002'].summaryOnly && by['IR-2569-002'].detail === '' && by['IR-2569-002'].reporter === '', role + ' ระดับ 1 ต้องเป็นแถวสรุป');
+      eq_(by['IR-2569-002'].causes, ['คน'], role + ' แถวสรุปยังมีหมวดสาเหตุสำหรับสถิติ');
+      eq_(by['IR-2569-002'].capa, [{ m:'', who:'', due:'2026-01-01', done:false, doneAt:'' }], role + ' มาตรการเหลือเฉพาะกำหนดเสร็จ');
+      ok_(!by['IR-2569-003'].summaryOnly, role + ' ระดับที่เสนอ 3 นับเป็นระดับ 3');
+    });
+    /* เจ้าของเรื่องยังเห็นเรื่องของตนเองครบ แม้เป็นระดับ 1 */
+    var mine = scoped_({ registered:true, role:'president', email:'c@nu.ac.th' }, list).filter(function (x) { return x.id === 'IR-2569-002'; })[0];
+    ok_(!mine.summaryOnly, 'ผู้รายงานเห็นเรื่องของตนเองครบ');
+    var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].execRead; }).sort();
+    return eq_(holders, ['assistant_president','president','vice_president','vice_president_sup'], 'บทบาทที่มี execRead');
   });
 
   /* กราฟเปรียบเทียบรายคณะคืนเฉพาะตัวเลขรวม เปิดให้ผู้บริหารที่ดูดัชนีได้และผู้ดูแลระบบ */

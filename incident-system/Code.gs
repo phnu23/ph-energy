@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.10';
+var APP_VERSION = '2.8.11';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -188,10 +188,10 @@ var ROLES = {
   /* ผู้บริหารระดับมหาวิทยาลัย — ตั้งแต่รุ่น 2.8.1 รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดี
      เห็น Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัยเช่นเดียวกับอธิการบดี (ถอด level3Only ออก)
      ยังเป็นบทบาทกำกับดูแล (oversight) จึงไม่เข้าถึงรายละเอียดรายเรื่องและไม่แก้ไขข้อมูลปฏิบัติการ */
-  vice_president     : { scope:'all', sensitiveAccess:1, oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
-  assistant_president: { scope:'all', sensitiveAccess:1, oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
-  vice_president_sup : { scope:'all', sensitiveAccess:1, oversight:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
-  president          : { scope:'all', sensitiveAccess:1, oversight:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  vice_president     : { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  assistant_president: { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  vice_president_sup : { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  president          : { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   /* ผู้ดูแลระบบแก้ข้อมูลรายงาน (edit) ได้ทุกคณะ ยกเว้นเรื่องอ่อนไหว เพราะไม่มี sensitiveAccess (findScoped_ ปฏิเสธเอง) */
   admin            : { scope:'all',     can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:0,cancel:1,admin:1,userAdmin:1,edit:1} }
 };
@@ -1261,6 +1261,7 @@ function scoped_(u, list) {
     /* ผู้รายงานต้องเห็นเรื่องของตนเองเสมอ แม้เป็นประเภทข้อมูลอ่อนไหว
        มิฉะนั้นคนที่แจ้งเรื่องการคุกคามหรือภาวะวิกฤต จะติดตามเรื่องของตัวเองไม่ได้เลย */
     var mine = isOwner_(u, x);
+    if (role.execRead && !mine && effLevel_(x) < EXEC_DETAIL_MIN_LEVEL) return execSummary_(x);
     /* บทบาทระดับคณะเข้าถึงเรื่องอ่อนไหวได้เฉพาะของหน่วยงานตนเอง
        เดิมไม่ต้องตรวจเพราะขอบเขตจำกัดอยู่แล้ว แต่ตอนนี้เห็นข้ามหน่วยงานได้ จึงต้องตรวจ */
     var sameFac = role.scope !== 'faculty' || sameFaculty_(x.faculty, u.faculty);
@@ -1304,6 +1305,28 @@ function crossStub_(x) {
    ถ้าไม่มี แถวสถิติจะไม่เข้าเงื่อนไข since แล้วเรื่องที่ถูกลดระดับจาก 3 เหลือ 2 จะค้างเป็นแถวเต็มบนหน้าจอตลอดไป */
 var STAT_KEEP = ['id','date','kind','status','level','suggestLevel','createdAt','updatedAt',
                  'injuryAxis','damageAxis','daysOff','faculty','orgUnit','unit','cancelledAt'];
+/* ผู้บริหารระดับมหาวิทยาลัย (execRead) เปิดอ่านรายละเอียดได้เฉพาะเรื่องระดับ 3 ขึ้นไป (รุ่น 2.8.11)
+   เรื่องระดับ 1–2 ส่งไปเบราว์เซอร์เป็น "แถวสรุป" ที่มีเฉพาะข้อมูลที่แดชบอร์ดและดัชนีใช้นับ
+   ไม่มีชื่อเรื่อง เนื้อหา ผู้รายงาน สถานที่ บันทึก หรือข้อความมาตรการ — แดชบอร์ดยังนับครบทุกเรื่อง
+   เดิมเบราว์เซอร์ของบทบาทเหล่านี้ได้รับเนื้อหาครบทุกเรื่องทุกระดับ แม้หน้าจอไม่แสดงก็อ่านได้จากเครื่องมือนักพัฒนา */
+var EXEC_DETAIL_MIN_LEVEL = 3;
+function effLevel_(x) { return Number(x && (x.level || x.suggestLevel)) || 0; }
+function execSummary_(x) {
+  var m = { summaryOnly:true, restricted:true, title:'(ระดับ 1–2 · เห็นเฉพาะในสถิติ)', detail:'',
+            reporter:'', reporterEmail:'', reporterPos:'', place:'', mapUrl:'', activity:'', course:'',
+            treat:'', assets:'', firstAid:'', confirmNote:'', investNote:'', meetPlace:'', capaNote:'',
+            deputyNote:'', monitorNote:'', reviewNote:'', ackNote:'', closeNote:'', cancelNote:'',
+            parts:[], involved:[], files:[], log:[], monitorLog:[] };
+  MASK_KEEP.forEach(function (k) { m[k] = x[k]; });
+  /* สาเหตุเป็นหมวดจากรายการคงที่ ไม่ใช่ข้อความอิสระ จึงส่งได้ ส่วนมาตรการเหลือเฉพาะกำหนดเสร็จและสถานะ */
+  m.causes = Array.isArray(x.causes) ? x.causes.slice() : [];
+  m.capa = (Array.isArray(x.capa) ? x.capa : []).map(function (c) {
+    return { m:'', who:'', due:(c && c.due) || '', done:!!(c && c.done), doneAt:(c && c.doneAt) || '' };
+  });
+  m.cancelledAt = x.cancelledAt; m.version = x.version;
+  return m;
+}
+
 function statStub_(x) {
   var o = { statOnly:true, restricted:true, title:'(นับในสถิติเท่านั้น)', detail:'',
             reporter:'', reporterEmail:'', reporterPos:'', place:'', mapUrl:'',
@@ -2141,15 +2164,21 @@ function findScopedRaw_(u, id) {
     }
   }
   if (role.oversight) {
-    /* บทบาทกำกับดูแลเข้าถึงได้เฉพาะเรื่องที่ตนเองเป็นผู้รายงาน */
+    /* บทบาทกำกับดูแลเข้าถึงได้เฉพาะเรื่องที่ตนเองเป็นผู้รายงาน
+       ยกเว้นผู้บริหารระดับมหาวิทยาลัย (execRead) ที่อ่านเรื่องระดับ 3 ขึ้นไปได้ — ตรวจต่อด้านล่างผ่าน scoped_ */
     var own = readAll_('Incidents').filter(function (x) {
       return String(x.id) === String(id) && isOwner_(u, x);
     })[0];
     if (own) return JSON.parse(JSON.stringify(own));
-    throw apiError_('FORBIDDEN', 'บทบาทนี้เข้าถึงได้เฉพาะข้อมูลระดับภาพรวมและเรื่องที่ตนเองเป็นผู้รายงาน');
+    if (!role.execRead)
+      throw apiError_('FORBIDDEN', 'บทบาทนี้เข้าถึงได้เฉพาะข้อมูลระดับภาพรวมและเรื่องที่ตนเองเป็นผู้รายงาน');
   }
   var r = scoped_(u, readAll_('Incidents')).filter(function (x) { return String(x.id) === String(id); })[0];
   if (!r) throw apiError_('NOT_FOUND', 'ไม่พบรายงานนี้ หรืออยู่นอกขอบเขตสิทธิ์ของท่าน');
+  if (r.summaryOnly) {
+    audit_(u, 'ถูกปฏิเสธการเข้าถึงรายละเอียด', id, 'ผู้บริหารเห็นเรื่องระดับ 1–2 เฉพาะในสถิติ');
+    throw apiError_('FORBIDDEN', 'เรื่องระดับ 1–2 แสดงเฉพาะในสถิติ ผู้บริหารระดับมหาวิทยาลัยเปิดรายละเอียดได้เฉพาะเรื่องระดับ 3 ขึ้นไป');
+  }
   if (r.statOnly) {
     audit_(u, 'ถูกปฏิเสธการเข้าถึงรายละเอียด', id, 'บทบาทนี้เห็นเรื่องนี้เฉพาะในสถิติ');
     throw apiError_('FORBIDDEN', 'เรื่องนี้อยู่ในสถิติของท่านแต่ไม่อยู่ในสิทธิ์การอ่านรายละเอียด');

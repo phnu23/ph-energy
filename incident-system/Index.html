@@ -1062,17 +1062,17 @@ const ROLES={
  facility:{name:"กองอาคารสถานที่ (ศูนย์รวมข้อมูล)",short:"กองอาคารฯ",code:"FACILITY_CENTER",scope:"all",
   desc:"รวบรวมข้อมูลทุกหน่วยงานและวิเคราะห์แนวโน้มเชิงกายภาพ โดยไม่กระทบต่อขอบเขตการบริหารจัดการภายในของแต่ละคณะ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
- vice_president:{name:"รองอธิการบดี",short:"รองอธิการบดี",code:"VICE_PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,
-  desc:"ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
+ vice_president:{name:"รองอธิการบดี",short:"รองอธิการบดี",code:"VICE_PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,execRead:1,
+  desc:"ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ และเปิดอ่านรายละเอียดอุบัติการณ์ระดับ 3 ขึ้นไปได้ (อ่านอย่างเดียว)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
- assistant_president:{name:"ผู้ช่วยอธิการบดี",short:"ผู้ช่วยอธิการบดี",code:"ASSISTANT_PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,
-  desc:"ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
+ assistant_president:{name:"ผู้ช่วยอธิการบดี",short:"ผู้ช่วยอธิการบดี",code:"ASSISTANT_PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,execRead:1,
+  desc:"ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ และเปิดอ่านรายละเอียดอุบัติการณ์ระดับ 3 ขึ้นไปได้ (อ่านอย่างเดียว)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
- vice_president_sup:{name:"รองอธิการบดี (กำกับดูแล)",short:"รองอธิการบดี (กำกับดูแล)",code:"VICE_PRESIDENT_SUP",scope:"all",sensitiveAccess:1,oversight:1,uniAlert:1,
-  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมได้ทุกระดับ พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
+ vice_president_sup:{name:"รองอธิการบดี (กำกับดูแล)",short:"รองอธิการบดี (กำกับดูแล)",code:"VICE_PRESIDENT_SUP",scope:"all",sensitiveAccess:1,oversight:1,execRead:1,uniAlert:1,
+  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมได้ทุกระดับ พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ และเปิดอ่านรายละเอียดอุบัติการณ์ระดับ 3 ขึ้นไปได้ (อ่านอย่างเดียว)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
- president:{name:"อธิการบดี",short:"อธิการบดี",code:"PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,uniAlert:1,
-  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมได้ทุกระดับ พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
+ president:{name:"อธิการบดี",short:"อธิการบดี",code:"PRESIDENT",scope:"all",sensitiveAccess:1,oversight:1,execRead:1,uniAlert:1,
+  desc:"รับทราบอุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย ใช้แดชบอร์ดติดตามและ Dashboard รายงานภาพรวมได้ทุกระดับ พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ และเปิดอ่านรายละเอียดอุบัติการณ์ระดับ 3 ขึ้นไปได้ (อ่านอย่างเดียว)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
  admin:{name:"ผู้ดูแลระบบ",short:"ผู้ดูแลระบบ",code:"SYS_ADMIN",scope:"all",
   desc:"จัดการผู้ใช้ ผังหน่วยงาน ตรวจสอบบันทึกการใช้งาน และแก้ไขข้อมูลรายงานที่กรอกคลาดเคลื่อน",
@@ -1107,6 +1107,8 @@ function overviewRows(list){
  if(!ME)return[];
  const base=(list||[]).filter(x=>!isStat(x));
  if(ROLES[ME.role].crossLevel3)return base;     /* รวมเรื่องข้ามหน่วยงานที่เซิร์ฟเวอร์ส่งมาแล้ว */
+ /* ผู้บริหารระดับมหาวิทยาลัย: แดชบอร์ดนับครบทุกระดับ รวมแถวสรุประดับ 1–2 ที่ไม่มีเนื้อหา (2.8.11) */
+ if(ROLES[ME.role].execRead)return base.filter(x=>!isCross(x));
  return visible(list);
 }
 
@@ -1116,6 +1118,7 @@ function statVisible(list){
  /* รองอธิการบดี (ทั่วไป) ขอบเขตเป็นทั้งมหาวิทยาลัย แถวสรุปที่เซิร์ฟเวอร์ส่งมาเพิ่มจึงทำให้
     ตัวตั้งเท่ากับตัวเลขจริงของทั้งมหาวิทยาลัย ซึ่งตรงกับตัวหารที่เป็นบุคลากรทั้งมหาวิทยาลัย */
  if(r.level3Only&&r.can.safetyIndex)return list||[];
+ if(r.execRead)return (list||[]).filter(x=>!isStat(x)&&!isCross(x));   /* ดัชนีต้องนับระดับ 1–2 ด้วย จึงรวมแถวสรุป */
  /* คณบดีต่างออกไป ขอบเขตเป็นระดับคณะ ตัวหารจาก OrgHeadcount จึงเป็นบุคลากรเฉพาะคณะตนเอง
     ถ้ารวมแถวข้ามคณะ (crossOnly ระดับ 3 ขึ้นไปของคณะอื่น) เข้ามาในตัวตั้งด้วย
     ดัชนีจะเป็นการเอาการบาดเจ็บทั้งมหาวิทยาลัยหารด้วยชั่วโมงทำงานของคณะเดียว
@@ -1126,7 +1129,7 @@ function statVisible(list){
 function visible(list){
  if(!ME)return[];
  const r=ROLES[ME.role];
- list=(list||[]).filter(x=>!isStat(x)&&!isCross(x));   /* แถวสรุปและเรื่องข้ามหน่วยงานไม่ปรากฏในรายการหรือหน้ารายละเอียด */
+ list=(list||[]).filter(x=>!isStat(x)&&!isCross(x)&&!x.summaryOnly);   /* แถวสรุป (รวมแถวสรุประดับ 1–2 ของผู้บริหาร) และเรื่องข้ามหน่วยงานไม่ปรากฏในรายการหรือหน้ารายละเอียด */
  /* รองอธิการบดี (ทั่วไป) เห็นเฉพาะระดับ 3 ขึ้นไปทั้งแดชบอร์ดติดตามและรายงานสถิติ
     บทบาทระดับมหาวิทยาลัยที่เหลือเห็นทุกระดับบนแดชบอร์ด แต่หน้ารายงานจำกัดระดับ 3 ขึ้นไป ดูที่ rpRows() */
  if(r.level3Only)return list.filter(x=>(x.level||x.suggestLevel)>=3);
@@ -1162,6 +1165,7 @@ function accessNotice(){
   title=({facility:"กองอาคารสถานที่",admin:"ผู้ดูแลระบบ"}[ME.role]||r.short)+": ภาพรวมทั้งมหาวิทยาลัย";
   detail="ท่านเห็นข้อมูลทุกคณะและทุกหน่วยงาน และสามารถกรองเพื่อเปรียบเทียบภาพรวมได้";
   if(r.level3Only)detail="ท่านเห็นอุบัติการณ์ระดับ 3 ขึ้นไปของทุกคณะและทุกหน่วยงาน";
+  else if(r.execRead)detail+=" · เปิดอ่านรายละเอียดรายเรื่องได้เฉพาะระดับ 3 ขึ้นไป (อ่านอย่างเดียว) ส่วนระดับ 1–2 แสดงเฉพาะในสถิติ";
   else if(r.reportLevel3)detail+=" ส่วนหน้ารายงานสถิติแสดงเฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป";
  }
  else if(r.scope==="faculty"){title="ผู้ดูแลระดับคณะ: "+esc(userFaculty(ME));detail="ท่านเห็นเฉพาะข้อมูลของคณะนี้ รวมทุกหน่วยงานภายในคณะ"}
@@ -1188,8 +1192,8 @@ function buildNav(){
  items.push({p:"dash",l:"Dashboard ติดตามอุบัติการณ์"});
  if(r.can.create)items.push({p:"new",l:"เขียนรายงานอุบัติการณ์"});
  /* บทบาทกำกับดูแลใช้ข้อมูลระดับภาพรวม ไม่เข้าถึงรายเรื่องเพื่อคงความเป็นเจ้าของข้อมูลไว้ที่คณะ */
- if(!r.oversight){
-  items.push({p:"list",l:"รายงานอุบัติการณ์",n:open});
+ if(!r.oversight||r.execRead){
+  items.push({p:"list",l:r.execRead?"รายงานอุบัติการณ์ระดับ 3 ขึ้นไป":"รายงานอุบัติการณ์",n:open});
   items.push({p:"search",l:"ค้นหาย้อนหลัง"});
  }
  items.push({k:"ข้อมูลอ้างอิง"});
@@ -1218,7 +1222,9 @@ function ownReport(r){
 }
 function go(p,id){
  const ownDetail=p==="detail"&&ownReport(INCIDENTS.find(x=>x.id===(id!==undefined?id:CURRENT)));
- if(ROLES[ME.role].oversight&&RECORD_PAGES.includes(p)&&!ownDetail){
+ /* ผู้บริหารระดับมหาวิทยาลัย (execRead) เข้ารายการ ค้นหา และรายละเอียดได้ (เฉพาะระดับ 3 ขึ้นไป — กรองที่ visible() และเซิร์ฟเวอร์) */
+ const execOk=ROLES[ME.role].execRead&&["list","detail","search"].includes(p);
+ if(ROLES[ME.role].oversight&&RECORD_PAGES.includes(p)&&!ownDetail&&!execOk){
   PAGE="dash"; document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.p==="dash"));
   document.getElementById("pageTitle").textContent=PAGES.dash[0];
   document.getElementById("crumb").textContent=PAGES.dash[1];
@@ -2494,7 +2500,9 @@ function chain(level,r,preview){
 
 /* ========== 11. หน้ารายละเอียด ========== */
 function pgDetail(){
- if(ROLES[ME.role].oversight&&!ownReport(INCIDENTS.find(x=>x.id===CURRENT)))return `<div class="empty"><b>บทบาทนี้ใช้ข้อมูลเพื่อการกำกับติดตาม</b>${ROLES[ME.role].name} เข้าถึงแดชบอร์ดติดตามและรายงานสถิติ การดูรายละเอียดรายเรื่องเป็นสิทธิ์ของผู้ปฏิบัติในคณะ</div>`;
+ const rec0=INCIDENTS.find(x=>x.id===CURRENT);
+ if(ROLES[ME.role].execRead&&rec0&&rec0.summaryOnly&&!ownReport(rec0))return `<div class="empty"><b>เรื่องระดับ 1–2 แสดงเฉพาะในสถิติ</b>${esc(ROLES[ME.role].name)} เปิดอ่านรายละเอียดได้เฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป</div>`;
+ if(ROLES[ME.role].oversight&&!ROLES[ME.role].execRead&&!ownReport(rec0))return `<div class="empty"><b>บทบาทนี้ใช้ข้อมูลเพื่อการกำกับติดตาม</b>${ROLES[ME.role].name} เข้าถึงแดชบอร์ดติดตามและรายงานสถิติ การดูรายละเอียดรายเรื่องเป็นสิทธิ์ของผู้ปฏิบัติในคณะ</div>`;
  const r=visible(INCIDENTS).find(x=>x.id===CURRENT); // บังคับขอบเขตสิทธิ์ที่หน้ารายละเอียดด้วย ไม่ใช่แค่ซ่อนลิงก์
  if(!r)return `<div class="empty"><b>ไม่พบรายงาน</b>เรื่องนี้อาจอยู่นอกขอบเขตสิทธิ์ของท่าน</div>`;
  if(!canOpen(r))return `<button class="btn btn-sm" onclick="go('list')" style="margin-bottom:16px">← กลับรายการ</button>
