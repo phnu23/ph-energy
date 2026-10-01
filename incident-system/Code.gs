@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.4';
+var APP_VERSION = '2.8.5';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -215,7 +215,20 @@ function isRole_(name) { return Object.prototype.hasOwnProperty.call(ROLES, Stri
 /* ผู้กระทำของงานอัตโนมัติ (ทริกเกอร์) ที่ไม่มี Session ผู้ใช้ — ใช้ค่าเดียวกันทุกงานเพื่อค้นใน Audit ได้ง่าย */
 var SYSTEM_ACTOR = { email:'system@trigger', role:'system' };
 function isSystemAdmin_(u) { return !!(u && isRole_(u.role) && ROLES[u.role].can.admin); }
-function sameFaculty_(a, b) { return String(a || '').trim() === String(b || '').trim(); }
+/* ชื่อหน่วยงานเดิมที่เปลี่ยนในผังรุ่น 2.8.5 → ชื่อใหม่ ต้องตรงกับ UNIT_ALIASES ใน Index.html เสมอ
+   เทียบคณะ/หน่วยงานผ่าน canonUnit_ ทุกครั้ง ผู้ใช้ รายงาน และทะเบียนบุคลากรที่บันทึกด้วยชื่อเก่า
+   จึงยังอยู่ในขอบเขตเดียวกับชื่อใหม่ โดยไม่ต้องแก้ข้อมูลในชีต */
+var UNIT_ALIASES = {
+  'กองกลาง สำนักงานอธิการบดี'                   : 'กองกลาง',
+  'สำนักงานหอสมุด'                              : 'สำนักหอสมุด',
+  'โรงเรียนอนุบาลและประถมสาธิตมหาวิทยาลัยนเรศวร' : 'โรงเรียนอนุบาลและประถมสาธิต มหาวิทยาลัยนเรศวร',
+  'สำนักงานอธิการดี'                             : 'สำนักงานอธิการบดี'
+};
+function canonUnit_(v) {
+  var t = String(v || '').trim();
+  return Object.prototype.hasOwnProperty.call(UNIT_ALIASES, t) ? UNIT_ALIASES[t] : t;
+}
+function sameFaculty_(a, b) { return canonUnit_(a) === canonUnit_(b); }
 /* หน่วยงานในคณะใช้กติกาเดียวกับคณะ — ช่องว่างหัวท้ายในชีตต้องไม่ทำให้คนหน่วยเดียวกันมองไม่เห็นเรื่องของกัน */
 function sameOrgUnit_(a, b) { return String(a || '').trim() === String(b || '').trim(); }
 
@@ -939,7 +952,7 @@ function readSheet_(name) {
     if (name === 'Audit') o.t = fmtStamp_(o.t);
     if (name === 'Attachments') { o.createdAt = fmtStamp_(o.createdAt); o.expiresAt = fmtStamp_(o.expiresAt); }
     if (name === 'OrgHeadcount') {
-      o.faculty = String(o.faculty || '').trim();
+      o.faculty = canonUnit_(o.faculty);   /* แถวที่บันทึกด้วยชื่อเก่าจะถูกเขียนกลับเป็นชื่อใหม่ในการบันทึกครั้งถัดไป */
       o.orgUnit = String(o.orgUnit || '').trim();
       o.headcount = Math.max(0, Number(o.headcount) || 0);
       o.hoursPerYear = Math.max(0, Number(o.hoursPerYear) || 0);
@@ -2349,8 +2362,10 @@ function adminCheckUsers_(officialUnits) {
     else {
       /* ตั้งแต่ 2.7.4 ระบบตัดช่องว่างให้เองทุกจุดที่เทียบขอบเขต จึงเหลือเป็นคำเตือนให้เก็บข้อมูลให้สะอาด */
       if (fac !== fac.trim()) add('warn', 'ชื่อคณะมีช่องว่างหัวหรือท้าย ระบบตัดให้อัตโนมัติแล้ว แต่ควรแก้ในชีตให้สะอาด');
-      if (units.length && units.indexOf(fac.trim()) < 0)
+      if (units.length && units.indexOf(canonUnit_(fac)) < 0)
         add('error', 'ชื่อคณะ "' + fac.trim() + '" ไม่ตรงกับรายชื่อหน่วยงานทางการ ต้องเลือกจากรายการเท่านั้น');
+      else if (canonUnit_(fac) !== fac.trim())
+        add('warn', 'ใช้ชื่อหน่วยงานเดิม "' + fac.trim() + '" ระบบนับเป็น "' + canonUnit_(fac) + '" ให้อัตโนมัติแล้ว แต่ควรแก้ในชีตเป็นชื่อใหม่');
     }
     if (isRole_(x.role) && ROLES[x.role].scope === 'orgUnit' && !String(x.orgUnit || '').trim())
       add('warn', 'บทบาทนี้มีขอบเขตระดับหน่วยงานในคณะ แต่ยังไม่ได้ระบุหน่วยงาน จะไม่เห็นรายงานใด');
@@ -2383,7 +2398,7 @@ function adminCheckUsers_(officialUnits) {
     f.notes = notes;
     f.missing = miss;
     f.ready = miss.length === 0;
-    f.official = units.length ? units.indexOf(f.faculty) >= 0 : true;
+    f.official = units.length ? units.indexOf(canonUnit_(f.faculty)) >= 0 : true;
     return f;
   }).sort(function (a, b) { return (a.ready === b.ready) ? b.incidents - a.incidents : (a.ready ? 1 : -1); });
 
@@ -2430,7 +2445,7 @@ function orgHoursPerYear_(row) {
 function orgKey_(faculty, orgUnit) {
   /* ใช้ JSON แทนการต่อสตริงด้วยตัวคั่น เพราะชื่อคณะและหน่วยงานมีช่องว่างได้ทั้งคู่
      "คณะ ก" + "งาน ข" กับ "คณะ ก งาน" + "ข" จะได้คีย์เดียวกันถ้าต่อด้วยช่องว่างเฉย ๆ */
-  return JSON.stringify([String(faculty || '').trim(), String(orgUnit || '').trim()]);
+  return JSON.stringify([canonUnit_(faculty), String(orgUnit || '').trim()]);
 }
 
 /* กรองทะเบียนตามขอบเขตของผู้ใช้ ใช้กติกาเดียวกับ inScope_ โดยมองหนึ่งแถวเป็นหนึ่งหน่วยงาน */
@@ -2680,7 +2695,7 @@ function reportFacultyIndex_() {
   }
   var fac = {};
   var get = function (name) {
-    name = String(name || '').trim() || 'ไม่ระบุคณะ/หน่วยงาน';
+    name = canonUnit_(name) || 'ไม่ระบุคณะ/หน่วยงาน';
     if (!fac[name]) fac[name] = { faculty:name, headcount:0, hoursPerYear:0, months:{} };
     return fac[name];
   };

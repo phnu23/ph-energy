@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.4
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.5
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -149,6 +149,17 @@ function unitHeadcount_() {
     throws_('VALIDATION_FAILED', function () { cleanStaffGroups_([{ n:5, h:7, d:400 }], 'x'); });
     throws_('VALIDATION_FAILED', function () { cleanStaffGroups_([{ n:5, h:1, d:20 }], 'x'); });
     return throws_('VALIDATION_FAILED', function () { cleanStaffGroups_([{ n:5, h:7, d:240, updatedBy:'x' }], 'x'); });
+  });
+
+  /* ผังหน่วยงานรุ่น 2.8.5 เปลี่ยนชื่อบางหน่วยงาน ข้อมูลเดิมที่ใช้ชื่อเก่าต้องยังนับเป็นหน่วยงานเดียวกัน */
+  t_('ชื่อหน่วยงานเดิมเทียบเท่าชื่อใหม่', function () {
+    ok_(sameFaculty_('สำนักงานหอสมุด', 'สำนักหอสมุด'), 'หอสมุด');
+    ok_(sameFaculty_('กองกลาง สำนักงานอธิการบดี', ' กองกลาง '), 'กองกลาง');
+    ok_(sameFaculty_('โรงเรียนอนุบาลและประถมสาธิตมหาวิทยาลัยนเรศวร', 'โรงเรียนอนุบาลและประถมสาธิต มหาวิทยาลัยนเรศวร'), 'โรงเรียนอนุบาล');
+    ok_(!sameFaculty_('กองกลาง', 'กองคลัง'), 'หน่วยงานต่างกันต้องไม่เท่ากัน');
+    eq_(orgKey_('สำนักงานหอสมุด', ''), orgKey_('สำนักหอสมุด', ''), 'คีย์ทะเบียนบุคลากรต้องเป็นแถวเดียวกัน');
+    var cyc = Object.keys(UNIT_ALIASES).filter(function (k) { return UNIT_ALIASES[UNIT_ALIASES[k]]; });
+    return ok_(cyc.length === 0, 'ชื่อใหม่ต้องไม่ถูกแปลงซ้ำอีกทอด: ' + cyc.join(', '));
   });
 
   /* กราฟเปรียบเทียบรายคณะคืนเฉพาะตัวเลขรวม เปิดให้ผู้บริหารที่ดูดัชนีได้และผู้ดูแลระบบ */
