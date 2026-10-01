@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.7';
+var APP_VERSION = '2.8.8';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -179,7 +179,7 @@ var ROLES = {
   /* บทบาทกำกับดูแล: ดูภาพรวมและรายงานภาพรวมเท่านั้น ไม่แก้ไขข้อมูลปฏิบัติการ */
   deputy_dean      : { scope:'faculty', sensitiveAccess:1, oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0} },
   safety_committee : { scope:'faculty', oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0} },
-  dean             : { scope:'faculty', sensitiveAccess:1, crossLevel3:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0,headcount:1} },
+  dean             : { scope:'faculty', sensitiveAccess:1, crossLevel3:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   /* ผู้ดูแลระดับคณะ: จัดการทะเบียนสิทธิ์เฉพาะคณะของตนเอง มองไม่เห็นและแก้ไม่ได้ซึ่งผู้ใช้ของคณะอื่น
      ไม่มีสิทธิ์ระดับระบบ (สำรองข้อมูล ติดตั้งทริกเกอร์ อ่าน Audit ทั้งมหาวิทยาลัย ตรวจสุขภาพระบบ)
      และไม่มีสิทธิ์ในข้อมูลปฏิบัติการของเรื่อง เพื่อไม่ให้ผู้จัดการสิทธิ์กลายเป็นผู้ตัดสินเรื่องเสียเอง */
@@ -2459,16 +2459,16 @@ function orgHeadcountInScope_(u, rows) {
 }
 
 /* สิทธิ์แก้ไขทะเบียน — ผู้ดูแลระบบแก้ได้ทุกคณะ
-   ผู้ดูแลระดับคณะ และบทบาทที่มีสิทธิ์ headcount (หัวหน้าสำนักงาน รองคณบดี (กำกับดูแล) คณบดี/ผู้อำนวยการกอง)
-   แก้ได้เฉพาะคณะ/กองของตนเอง — แต่ละคณะและกองกรอกจำนวนบุคลากรและชั่วโมงทำงานเองได้เหมือนรุ่น 2.6.6
+   ตั้งแต่รุ่น 2.8.8 ผู้กรอกและบันทึกจำนวนบุคลากร/วิธีคิดเวลาการทำงาน คือบทบาทที่มีสิทธิ์ headcount เท่านั้น
+   ได้แก่ หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย และรองคณบดี (กำกับดูแล) แก้ได้เฉพาะคณะ/กองของตนเอง
+   คณบดี/ผู้อำนวยการกอง และผู้ดูแลระดับคณะ ดูได้แต่แก้ไม่ได้ — แต่ละคณะและกองกรอกจำนวนบุคลากรและชั่วโมงทำงานเองได้เหมือนรุ่น 2.6.6
    แต่ค่ายังเก็บที่ฐานข้อมูลกลาง ทุกคนจึงเห็นดัชนีตรงกัน
    ใช้ตัวนี้ทั้งตอนบอกหน้าจอว่าให้แสดงปุ่มหรือไม่ และตอนตรวจจริงตอนบันทึก
    จึงไม่มีทางที่หน้าจอกับเซิร์ฟเวอร์จะเห็นสิทธิ์ไม่ตรงกัน */
 function canEditHeadcount_(u, faculty) {
   if (!u || !u.registered || !isRole_(u.role)) return false;
   if (isSystemAdmin_(u)) return true;
-  var can = ROLES[u.role].can;
-  if (!can.userAdmin && !can.headcount) return false;
+  if (!ROLES[u.role].can.headcount) return false;
   if (!String(u.faculty || '').trim()) return false;
   return faculty === undefined || sameFaculty_(faculty, u.faculty);
 }

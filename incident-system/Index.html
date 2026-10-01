@@ -1054,8 +1054,8 @@ const ROLES={
   desc:"คณะกรรมการความปลอดภัยฯ ใช้แดชบอร์ดติดตามและรายงานสถิติได้ (คณะที่ยังไม่มี คปอ. ไม่ต้องกำหนดผู้ใช้ในบทบาทนี้)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0}},
  dean:{name:"คณบดี / ผู้อำนวยการกอง",short:"คณบดี",code:"DEAN",scope:"faculty",sensitiveAccess:1,crossLevel3:1,
-  desc:"รับทราบทุกระดับ รายงานมหาวิทยาลัยกรณีระดับ 3 ขึ้นไป รับทราบผลการดำเนินการก่อนปิดเรื่อง ดู Dashboard รายงานภาพรวมและเปรียบเทียบดัชนีความปลอดภัยรายคณะ และกรอกจำนวนบุคลากร/ชั่วโมงการทำงานของคณะหรือกองตนเอง",
-  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0,headcount:1}},
+  desc:"รับทราบทุกระดับ รายงานมหาวิทยาลัยกรณีระดับ 3 ขึ้นไป รับทราบผลการดำเนินการก่อนปิดเรื่อง ดู Dashboard รายงานภาพรวมและเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
+  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
  faculty_admin:{name:"ผู้ดูแลระดับคณะ",short:"ผู้ดูแลคณะ",code:"FACULTY_ADMIN",scope:"faculty",
   desc:"จัดการทะเบียนผู้ใช้และสิทธิ์เฉพาะคณะของตนเอง ไม่เห็นผู้ใช้ของคณะอื่น และไม่มีสิทธิ์ระดับระบบ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,userAdmin:1}},
@@ -2004,7 +2004,7 @@ function afrPanel(rows,p){
     :ORG_HC_STATE==="error"?`<div class="note warn" style="margin:0">${esc(ORG_HC_ERR)}
       <button class="btn" style="margin-top:8px" onclick="loadOrgHeadcount(true)">ลองใหม่</button></div>`
     :!orgReady()?`<div class="note warn" style="margin:0">ยังไม่มีจำนวนบุคลากรในทะเบียน จึงยังคำนวณดัชนีไม่ได้
-      ${ORG_HC&&ORG_HC.canEdit?"กรุณากรอกในตารางด้านล่าง":"กรุณาแจ้งผู้ดูแลระบบให้กรอกทะเบียนจำนวนบุคลากร"}</div>`
+      ${ORG_HC&&ORG_HC.canEdit?"กรุณากรอกในตารางด้านล่าง":"ผู้กรอกคือหัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย หรือรองคณบดี (กำกับดูแล) ของแต่ละคณะ/กอง"}</div>`
     :`<div class="afr-stat">
       <div class="afr-s"><div class="k">บุคลากรในขอบเขต</div><div class="v">${fmtN(orgHeadTotal())} <small>คน · ${ORG_HC.configured} หน่วยงาน</small></div></div>
       <div class="afr-s"><div class="k">ชั่วโมงทำงานรวม/ปี</div><div class="v">${fmtN(orgHoursTotal())} <small>ชม.</small></div></div>
@@ -2266,7 +2266,7 @@ function fixPanel(){
    ${missing.length&&!cmp?`<div class="note${missInc.length?" warn":""}" style="margin-top:12px;font-size:12.3px">
      <b>ยังไม่มีชั่วโมงการทำงาน ${missing.length} หน่วยงาน</b> จึงยังคำนวณดัชนีไม่ได้
      ${missInc.length?`— ในจำนวนนี้มีอุบัติเหตุที่นับในช่วงนี้แล้ว: ${missInc.map(x=>esc(x.faculty)).join(", ")}`:""}
-     <br>แต่ละคณะ/กองกรอกได้เองที่ "ทะเบียนจำนวนบุคลากรและชั่วโมงการทำงาน" ในการ์ดดัชนีความปลอดภัยด้านบน</div>`:""}
+     <br>หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย หรือรองคณบดี (กำกับดูแล) ของแต่ละคณะ/กอง กรอกได้ที่ "ทะเบียนจำนวนบุคลากรและชั่วโมงการทำงาน" ในการ์ดดัชนีความปลอดภัยด้านบน</div>`:""}
    <details class="fx-data"><summary>ตารางข้อมูล (IFR · ISR · PDFR)</summary>
     <div class="tbl-wrap"><table class="hc-tbl"><thead><tr><th>${cmp?"คลัสเตอร์":"คณะ/หน่วยงาน"}</th><th>${cmp?"มีชั่วโมง":"คลัสเตอร์"}</th><th class="r">บุคลากร</th><th class="r">ชั่วโมงในช่วง</th>
      <th class="r">บาดเจ็บ</th><th class="r">IFR</th><th class="r">วันหยุดงาน</th><th class="r">ISR</th><th class="r">เสียทรัพย์สิน</th><th class="r">PDFR</th></tr></thead>

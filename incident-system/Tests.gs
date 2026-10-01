@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.7
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.8
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -118,13 +118,18 @@ function unitHeadcount_() {
     var fadm  = { registered:true, role:'faculty_admin', faculty:'คณะสาธารณสุขศาสตร์' };
     var dean  = { registered:true, role:'dean', faculty:'คณะสาธารณสุขศาสตร์' };
     eq_(canEditHeadcount_(admin, 'คณะแพทยศาสตร์'), true, 'ผู้ดูแลระบบแก้ได้ทุกคณะ');
-    eq_(canEditHeadcount_(fadm, 'คณะสาธารณสุขศาสตร์'), true, 'ผู้ดูแลระดับคณะแก้คณะตัวเองได้');
+    eq_(canEditHeadcount_(fadm, 'คณะสาธารณสุขศาสตร์'), false, 'ผู้ดูแลระดับคณะดูได้แต่แก้ไม่ได้ (2.8.8)');
     eq_(canEditHeadcount_(fadm, 'คณะแพทยศาสตร์'), false, 'ผู้ดูแลระดับคณะแก้คณะอื่นไม่ได้');
     /* ตั้งแต่ 2.8.1 แต่ละคณะ/กองกรอกทะเบียนเองได้ (เหมือนรุ่น 2.6.6) แต่เฉพาะคณะของตนเอง */
     var office = { registered:true, role:'office_head', faculty:'คณะสาธารณสุขศาสตร์' };
     var sup    = { registered:true, role:'supervisor', faculty:'คณะสาธารณสุขศาสตร์', orgUnit:'งานธุรการ' };
     var vp     = { registered:true, role:'vice_president', faculty:'สำนักงานอธิการบดี' };
-    eq_(canEditHeadcount_(dean, 'คณะสาธารณสุขศาสตร์'), true, 'คณบดี/ผอ.กอง กรอกของคณะ/กองตัวเองได้');
+    eq_(canEditHeadcount_(dean, 'คณะสาธารณสุขศาสตร์'), false, 'คณบดี/ผอ.กอง ดูได้แต่แก้ไม่ได้ (2.8.8)');
+    var dsup = { registered:true, role:'deputy_dean_sup', faculty:'คณะสาธารณสุขศาสตร์' };
+    eq_(canEditHeadcount_(dsup, 'คณะสาธารณสุขศาสตร์'), true, 'รองคณบดี (กำกับดูแล) กรอกของคณะตัวเองได้');
+    eq_(canEditHeadcount_(dsup, 'คณะแพทยศาสตร์'), false, 'รองคณบดี (กำกับดูแล) แก้คณะอื่นไม่ได้');
+    var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].can.headcount; }).sort();
+    eq_(holders, ['deputy_dean_sup','office_head'], 'บทบาทที่กรอกทะเบียนได้');
     eq_(canEditHeadcount_(dean, 'คณะแพทยศาสตร์'), false, 'คณบดีแก้คณะอื่นไม่ได้');
     eq_(canEditHeadcount_(office, 'คณะสาธารณสุขศาสตร์'), true, 'หัวหน้าสำนักงานกรอกของคณะตัวเองได้');
     eq_(canEditHeadcount_(office, 'คณะแพทยศาสตร์'), false, 'หัวหน้าสำนักงานแก้คณะอื่นไม่ได้');
