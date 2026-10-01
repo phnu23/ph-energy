@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.11
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.12
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -190,6 +190,16 @@ function unitHeadcount_() {
     ok_(!mine.summaryOnly, 'ผู้รายงานเห็นเรื่องของตนเองครบ');
     var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].execRead; }).sort();
     return eq_(holders, ['assistant_president','president','vice_president','vice_president_sup'], 'บทบาทที่มี execRead');
+  });
+
+  /* รุ่น 2.8.12 — ผู้รับอีเมลระดับมหาวิทยาลัยตามตารางระดับความรุนแรง */
+  t_('ผู้รับอีเมลระดับมหาวิทยาลัยตามตารางระดับความรุนแรง', function () {
+    eq_(UNIVERSITY_NOTIFY_MIN_LEVEL.president, 4, 'อธิการบดีรับเฉพาะระดับ 4–5');
+    ok_(!UNIVERSITY_NOTIFY_MIN_LEVEL.vice_president_sup, 'รองอธิการบดี (กำกับดูแล) รับตั้งแต่ระดับ 3');
+    ok_(UNIVERSITY_NOTIFY_ROLES.indexOf('vice_president') < 0 && UNIVERSITY_NOTIFY_ROLES.indexOf('assistant_president') < 0,
+        'รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดีไม่รับอีเมล');
+    ok_(String(notify_).indexOf('isSensitive_(rec.cats)') >= 0, 'อีเมลเรื่องอ่อนไหวต้องไม่ใส่สถานที่');
+    return ok_(String(assessIncident_).indexOf('before.suggestLevel') >= 0, 'ประเมินครั้งแรกไม่ส่งซ้ำถ้าระดับไม่สูงขึ้น');
   });
 
   /* กราฟเปรียบเทียบรายคณะคืนเฉพาะตัวเลขรวม เปิดให้ผู้บริหารที่ดูดัชนีได้และผู้ดูแลระบบ */

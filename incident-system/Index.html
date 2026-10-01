@@ -3634,6 +3634,8 @@ const HAS_GAS = !HAS_EXTERNAL;
 /* ค่า boolean นี้ถูกประเมินใน doGet() ก่อนส่ง HTML: true เฉพาะ Active user
    ที่เป็นบัญชีเดียวกับ Effective user หรือบัญชีผู้ Deploy Web App */
 const SERVER_EDITOR_AUTO_START = String('<?!= editorAutoStart ?>') === 'true';
+/* เลขที่รายงานจากลิงก์ในอีเมลแจ้งเตือน (เซิร์ฟเวอร์ตรวจรูปแบบแล้ว) — เปิดหน้ารายละเอียดหลังเข้าสู่ระบบครั้งแรก */
+var INITIAL_INCIDENT = (function(v){ return /^IR-\d{4}-\d{3,}$/.test(v) ? v : ''; })(String('<?= initialIncident ?>'));
 function gasRuntimeReady_(){
   return typeof google !== 'undefined' && !!google.script && !!google.script.run;
 }
@@ -3933,6 +3935,12 @@ function boot(){
     document.getElementById('app').classList.add('on');
     buildNav();
     go(EDITOR_AUTO_ENTRY ? 'dash' : 'new');
+    if (INITIAL_INCIDENT) {
+      var want = INITIAL_INCIDENT; INITIAL_INCIDENT = '';
+      var rec = INCIDENTS.find(function(x){ return x.id === want; });
+      if (rec && visible([rec]).length) go('detail', want);
+      else toast('เรื่อง ' + want + ' ไม่อยู่ในสิทธิ์เปิดรายละเอียดของท่าน (หรือแสดงเฉพาะในสถิติ)');
+    }
     syncState(false);
     startPolling();
   }, function(e){

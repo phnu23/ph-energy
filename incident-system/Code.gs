@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.11';
+var APP_VERSION = '2.8.12';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -206,6 +206,10 @@ var FACULTY_ADMIN_ASSIGNABLE = ['reporter','supervisor','office_head','deputy_de
 var FACULTY_NOTIFY_ROLES = ['office_head','deputy_dean_sup','deputy_dean','dean','safety_committee'];
 /* ผู้รับแจ้งเตือนระดับมหาวิทยาลัยของเหตุระดับ 3 ขึ้นไป */
 var UNIVERSITY_NOTIFY_ROLES = ['facility','vice_president_sup','president'];
+/* ระดับต่ำสุดที่แจ้งแต่ละบทบาทระดับมหาวิทยาลัย ตามตารางระดับความรุนแรง (SEV_UNI) — รุ่น 2.8.12
+   ระดับ 3 รายงานรองอธิการบดีที่เกี่ยวข้อง · ระดับ 4–5 รายงานรองอธิการบดีและอธิการบดี
+   บทบาทที่ไม่อยู่ในตารางนี้ใช้ CONFIG.NOTIFY_LEVEL */
+var UNIVERSITY_NOTIFY_MIN_LEVEL = { president:4 };
 /* ผู้รับสำรองเมื่อคณะยังไม่มีผู้ถือบทบาทข้างต้นเลย — อีเมลแจ้งเตือนต้องไม่เงียบหาย */
 var FALLBACK_NOTIFY_ROLES = ['facility','admin'];
 /* ตรวจชื่อบทบาทด้วย hasOwnProperty เสมอ ห้ามใช้ ROLES[x] ตรง ๆ เป็นเงื่อนไข
@@ -1088,11 +1092,15 @@ function today_() { return Utilities.formatDate(new Date(), Session.getScriptTim
 /* ============================================================
  *  3. ผู้ใช้และสิทธิ์
  * ============================================================ */
-function doGet() {
+function doGet(e) {
   /* ตัดสินสิทธิ์เปิด Dashboard ที่ฝั่งเซิร์ฟเวอร์ก่อนส่ง HTML
      เพื่อไม่ให้ผลขึ้นกับจังหวะโหลด google.script.run ในเบราว์เซอร์ */
   var template = HtmlService.createTemplateFromFile('Index');
   template.editorAutoStart = isDeployEditor_();
+  /* ลิงก์จากอีเมลแจ้งเตือน (?incident=IR-2569-001) เปิดหน้ารายละเอียดเรื่องนั้นหลังเข้าสู่ระบบ
+     รับเฉพาะรูปแบบเลขที่รายงาน เพราะค่านี้ถูกวางลงในหน้า HTML — สิทธิ์ยังตรวจตามปกติทุกขั้น */
+  var inc = String((e && e.parameter && e.parameter.incident) || '');
+  template.initialIncident = /^IR-\d{4}-\d{3,}$/.test(inc) ? inc : '';
   return template.evaluate()
     .setTitle(CONFIG.SYSTEM_NAME)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -1776,7 +1784,7 @@ function assessIncident_(id, inj, baht, dmg, daysOff, note) {
       ? 'เรื่องนี้ปิดแล้ว จึงแก้ผลการประเมินไม่ได้'
       : 'ประเมินระดับได้หลังหัวหน้างานยืนยันข้อเท็จจริงแล้วเท่านั้น');
   if (reassess) note = requiredNote_(note, 'note', 1000);
-  var before = { level:r.level, injuryAxis:r.injuryAxis, damageAxis:r.damageAxis, damageBaht:r.damageBaht, daysOff:r.daysOff };
+  var before = { level:r.level, suggestLevel:r.suggestLevel, injuryAxis:r.injuryAxis, damageAxis:r.damageAxis, damageBaht:r.damageBaht, daysOff:r.daysOff };
   /* ผู้ประเมินเลือกระดับความเสียหายเอง ถ้าไม่ส่งมาจึงคำนวณจากจำนวนเงิน */
   dmg = boundedInt_(dmg || damageBand_(baht), 1, 5, 'damageAxis');
   r.injuryAxis = boundedInt_(inj, 1, 5, 'injuryAxis');
@@ -1795,7 +1803,9 @@ function assessIncident_(id, inj, baht, dmg, daysOff, note) {
     r.log.push({ t:'ประเมินระดับความรุนแรงเป็นระดับ ' + r.level + '', by:u.name + ' (' + u.position + ')', d:now_(), hi:1 });
     updateIncident_(r);
     audit_(u, 'ประเมินระดับความรุนแรง', id, 'ระดับ ' + r.level);
-    notify_(r, u, r.level);
+    /* ตอนสร้างรายงานแจ้งตามระดับที่ระบบเสนอไปแล้ว ถ้าผลประเมินไม่สูงกว่าเดิม ผู้รับชุดเดิมจะได้อีเมลซ้ำโดยไม่มีข้อมูลใหม่
+       แจ้งเฉพาะเมื่อระดับที่ประเมินสูงกว่าระดับที่เสนอ เช่น 2 → 3 (ผู้รับระดับมหาวิทยาลัยเพิ่งเข้าเกณฑ์) หรือ 3 → 4 (ถึงอธิการบดี) */
+    if (r.level > (Number(before.suggestLevel) || 0)) notify_(r, u, r.level);
     return { level:r.level };
   }
   var diff = [];
@@ -3370,7 +3380,8 @@ function notify_(rec, actor, level) {
          จำกัดเฉพาะหน่วยงานที่เกิดเหตุ ไม่ส่งถึงหัวหน้างานทุกหน่วยในคณะ */
       if (x.role === 'supervisor') return sameFaculty_(x.faculty, rec.faculty) && sameOrgUnit_(x.orgUnit, rec.orgUnit);
       if (FACULTY_NOTIFY_ROLES.indexOf(x.role) >= 0) return sameFaculty_(x.faculty, rec.faculty);
-      return UNIVERSITY_NOTIFY_ROLES.indexOf(x.role) >= 0;   // รับทราบเหตุระดับ 3 ขึ้นไป
+      if (UNIVERSITY_NOTIFY_ROLES.indexOf(x.role) < 0) return false;
+      return level >= (UNIVERSITY_NOTIFY_MIN_LEVEL[x.role] || CONFIG.NOTIFY_LEVEL);
     });
     /* คณะที่ยังไม่มีผู้ใช้ในบทบาทเหล่านี้เลย (เช่น ยังไม่มี คปอ. หรือยังไม่ได้กำหนดสิทธิ์)
        ต้องไม่ทำให้การแจ้งเตือนเงียบหาย จึงส่งถึงกองอาคารสถานที่และผู้ดูแลระบบแทน */
@@ -3384,12 +3395,14 @@ function notify_(rec, actor, level) {
       'เรื่อง       : ' + mailTitle_(rec),
       'คณะ/หน่วยงาน : ' + rec.faculty + ' / ' + rec.orgUnit,
       'วันเวลา     : ' + rec.date + ' ' + rec.time,
-      'สถานที่     : ' + rec.place + (rec.mapUrl ? '\nแผนที่      : ' + rec.mapUrl : ''),
+      /* เรื่องอ่อนไหว (คุกคาม/ภาวะวิกฤต) สถานที่และพิกัดระบุตัวบุคคลได้ จึงไม่ใส่ในอีเมล — เปิดดูในระบบ */
+      'สถานที่     : ' + (isSensitive_(rec.cats) ? '(ข้อมูลอ่อนไหว — เปิดดูในระบบ)'
+                         : rec.place + (rec.mapUrl ? '\nแผนที่      : ' + rec.mapUrl : '')),
       '',
       'ตารางระดับความรุนแรง กำหนดให้แจ้งด้วยวาจาภายใน 1 ชั่วโมง และรายงานเป็นลายลักษณ์อักษรภายใน 24 ชั่วโมง',
       level >= 3 ? 'ระดับนี้ต้องรายงาน ' + SEV_UNI[level] : '',
       '',
-      'เปิดระบบ: ' + ScriptApp.getService().getUrl()
+      'เปิดเรื่องนี้ในระบบ: ' + ScriptApp.getService().getUrl() + '?incident=' + encodeURIComponent(rec.id)
     ].join('\n');
 
     MailApp.sendEmail({
@@ -3397,7 +3410,18 @@ function notify_(rec, actor, level) {
       subject : '[' + CONFIG.SYSTEM_NAME + '] อุบัติการณ์ระดับ ' + level + ' — ' + rec.id,
       body    : body
     });
-  } catch (e) { Logger.log('ส่งอีเมลไม่สำเร็จ: ' + e.message); }
+    /* บันทึกร่องรอยการส่ง (จำนวนและบทบาทผู้รับ ไม่บันทึกอีเมล) เพื่อตรวจย้อนหลังได้ว่าผู้บริหารได้รับแจ้งเมื่อไร */
+    var byRole = {};
+    users.forEach(function (x) { byRole[x.role] = (byRole[x.role] || 0) + 1; });
+    try { audit_(actor && actor.role ? actor : SYSTEM_ACTOR, 'ส่งอีเมลแจ้งเตือน', rec.id,
+      'ระดับ ' + level + ' · ผู้รับ ' + users.length + ' คน · ' +
+      Object.keys(byRole).map(function (k) { return k + ' ' + byRole[k]; }).join(', ')); } catch (ignore) {}
+  } catch (e) {
+    Logger.log('ส่งอีเมลไม่สำเร็จ: ' + e.message);
+    /* อีเมลส่งไม่ออก (เช่น โควตารายวันเต็ม) ต้องเห็นได้ในบันทึกการใช้งาน ไม่ใช่เงียบหายใน Logger */
+    try { audit_(actor && actor.role ? actor : SYSTEM_ACTOR, 'ส่งอีเมลแจ้งเตือนไม่สำเร็จ', rec.id,
+      'ระดับ ' + level + ' · ' + String(e && e.message || e).slice(0, 200), 'FAILED', 'MAIL_FAILED'); } catch (ignore2) {}
+  }
 }
 
 /* ============================================================
