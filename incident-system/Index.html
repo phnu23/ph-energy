@@ -788,6 +788,14 @@ const UNIT_ALIASES={
 };
 const canonUnit=v=>{const t=String(v||"").trim();return Object.prototype.hasOwnProperty.call(UNIT_ALIASES,t)?UNIT_ALIASES[t]:t};
 const ALL_UNITS=ORG.flatMap(g=>g.units.map(u=>({unit:u,group:g.name,gid:g.id})));
+/* ตัวเลือกหน่วยงานแบบจัดกลุ่ม พร้อมเลือกค่าปัจจุบันไว้ให้ ถ้าค่าปัจจุบันไม่อยู่ในผัง (หน่วยงานที่ถอดออกจากผังแล้ว)
+   ต้องแสดงเป็นตัวเลือกแยกและเลือกไว้ ห้ามปล่อยให้ dropdown ตกไปที่ตัวเลือกแรก ซึ่งจะบันทึกผิดหน่วยงานโดยไม่มีใครเห็น */
+function unitOptionsHtml(cur){
+ cur=canonUnit(cur);
+ const known=ALL_UNITS.some(x=>x.unit===cur);
+ return (cur&&!known?`<optgroup label="หน่วยงานเดิม (นอกผังหน่วยงาน)"><option value="${esc(cur)}" selected>${esc(cur)}</option></optgroup>`:"")+
+  ORG.map(g=>`<optgroup label="${esc(g.name)}">${g.units.map(u=>`<option value="${esc(u)}"${u===cur?" selected":""}>${esc(u)}</option>`).join("")}</optgroup>`).join("");
+}
 const unitGroup=u=>(ALL_UNITS.find(x=>x.unit===canonUnit(u))||{}).group||"-";
 const unitGid=u=>(ALL_UNITS.find(x=>x.unit===canonUnit(u))||{}).gid||"-";
 
@@ -1232,7 +1240,7 @@ function go(p,id){
 /* คณะที่ยังไม่มีผู้ใช้ในบทบาท คปอ. ให้ระบบทำงานต่อได้โดยไม่ติดขัด
    หน้าที่ร่วมสอบสวนและพิจารณามาตรการตกเป็นของหัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมายและรองคณบดี */
 function hasRoleInFaculty(role,faculty){
- return ROLE_COVERAGE.some(function(u){return u.role===role&&u.faculty===faculty;});
+ return ROLE_COVERAGE.some(function(u){return u.role===role&&canonUnit(u.faculty)===canonUnit(faculty);});
 }
 function hasSafetyCommittee(faculty){return hasRoleInFaculty("safety_committee",faculty)}
 /* คณะที่ยังไม่ได้กำหนดรองคณบดี (กำกับดูแล) ให้คณบดีตรวจสอบผลการติดตามแทนได้
@@ -2117,8 +2125,10 @@ function setFix(k,v){
  rerenderReport();
 }
 /* เดือนทั้งหมดที่มีข้อมูล ไปจนถึงเดือนปัจจุบัน */
+/* เดือนปัจจุบันตามเวลาเครื่อง (ไทย) — toISOString() เป็นเวลา UTC ช่วง 00:00–06:59 ของวันที่ 1 จะยังเป็นเดือนก่อน */
+function fixNowYM(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
 function fixFirstMonth(){
- let min=new Date().toISOString().slice(0,7);
+ let min=fixNowYM();
  ((FIX&&FIX.faculties)||[]).forEach(f=>Object.keys(f.months||{}).forEach(m=>{if(m<min)min=m}));
  return min;
 }
@@ -2130,14 +2140,14 @@ function fixMonthsBetween(a,b){
 /* ปีงบประมาณ พ.ศ. Y = 1 ต.ค. (Y-544) ถึง 30 ก.ย. (Y-543) ตามปีงบประมาณราชการ */
 function fixYearOf(ym){const y=+ym.slice(0,4),m=+ym.slice(5,7);return FIX_YEARTYPE==="fiscal"?(m>=10?y+1:y):y}
 function fixPeriodOptions(){
- const now=new Date().toISOString().slice(0,7), ms=fixMonthsBetween(fixFirstMonth(),now);
+ const now=fixNowYM(), ms=fixMonthsBetween(fixFirstMonth(),now);
  if(FIX_VIEW==="month")return ms.slice().reverse().map(m=>({v:m,l:thMonthLabel(m).replace(/(\d{2})$/," 25$1")}));
  const ys=[...new Set(ms.map(fixYearOf))].sort((a,b)=>b-a);
  return ys.map(y=>({v:String(y),l:(FIX_YEARTYPE==="fiscal"?"ปีงบประมาณ ":"ปี ")+"พ.ศ. "+(y+543)}));
 }
 /* เดือนในช่วงที่เลือก ตัดเดือนในอนาคตทิ้ง เพื่อให้ปีปัจจุบันที่ยังไม่ครบใช้ชั่วโมงเท่าที่ผ่านไปจริง */
 function fixPeriodMonths(p){
- const now=new Date().toISOString().slice(0,7);
+ const now=fixNowYM();
  if(FIX_VIEW==="month")return [p];
  const y=+p, from=FIX_YEARTYPE==="fiscal"?(y-1)+"-10":y+"-01", to=FIX_YEARTYPE==="fiscal"?y+"-09":y+"-12";
  return fixMonthsBetween(from,to<now?to:now);
@@ -2183,7 +2193,7 @@ function fixPanel(){
  const plabel=(opts.find(o=>o.v===FIX_PERIOD)||{l:"—"}).l;
  const months=fixPeriodMonths(FIX_PERIOD), res=fixCompute(months), M=FIX_METRICS[FIX_METRIC];
  if(FIX_GROUP&&FIX_GROUP!=="__cmp"&&!res.groups.some(g=>g.id===FIX_GROUP))FIX_GROUP="";
- const own=String(FIX.ownFaculty||"").trim(), ownG=own?fixGroupOf(own).id:"";
+ const own=canonUnit(FIX.ownFaculty), ownG=own?fixGroupOf(own).id:"";
  const fmt=v=>v===null||v===undefined?"—":v.toFixed(2);
  const fmtN=n=>Math.round(n).toLocaleString("en-US");
  const byMetric=(a,b)=>b[FIX_METRIC]-a[FIX_METRIC]||b[M.n]-a[M.n]||String(a.faculty||a.name).localeCompare(String(b.faculty||b.name),"th");
@@ -3237,7 +3247,7 @@ function pgNew(){
      </div>
      <div id="catNote"></div></div>
     <div class="fld"><label class="f">คณะ/หน่วยงานที่เกิดเหตุ</label>
-     <select id="f_unit">${ORG.map(g=>`<optgroup label="${g.name}">${g.units.map(u=>`<option ${u===esc(ME.unit)?"selected":""}>${u}</option>`).join("")}</optgroup>`).join("")}</select></div>
+     <select id="f_unit">${unitOptionsHtml(userFaculty(ME)||canonUnit(ME.unit))}</select></div>
     <div class="fld"><label class="f">หน่วยงานในคณะ</label>
      <input type="text" id="f_subunit" maxlength="150" placeholder="เช่น ภาควิชา สาขาวิชา งาน หรือหน่วยงานย่อย"></div>
    </div></div></div>
@@ -4171,7 +4181,7 @@ function renderUsers(list){
      /* แถวของผู้ดูแล ต้องให้ผู้ดูแลระบบเป็นผู้แก้เท่านั้น หน้าจอจึงล็อกไว้ให้ตรงกับกติกาฝั่งเซิร์ฟเวอร์ */
      var locked = !isSysAdminUI() && ['admin','faculty_admin'].indexOf(u.role) >= 0;
      return '<tr class="norow"><td class="id">' + esc(u.email) + '</td><td>' + esc(u.name || '') + '</td>' +
-     '<td><select id="uf' + i + '">' + ALL_UNITS.map(function(o){return '<option' + (o.unit === userFaculty(u) ? ' selected' : '') + '>' + esc(o.unit) + '</option>';}).join('') + '</select></td>' +
+     '<td><select id="uf' + i + '">' + unitOptionsHtml(userFaculty(u)) + '</select></td>' +
      '<td><input id="uu' + i + '" value="' + esc(userOrgUnit(u) || '') + '" placeholder="หน่วยงานในคณะ"></td>' +
      '<td>' + (locked ? esc((ROLES[u.role] && ROLES[u.role].name) || u.role)
        : '<select id="ur' + i + '">' + assignableRoleKeys().map(function(k){

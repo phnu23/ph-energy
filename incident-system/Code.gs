@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.6';
+var APP_VERSION = '2.8.7';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -2375,7 +2375,7 @@ function adminCheckUsers_(officialUnits) {
 
   /* คณะใดมีคนหรือมีรายงานแล้ว ต้องมีผู้รับผิดชอบครบจึงจะเดินครบ 9 ขั้น */
   var facs = {};
-  var touch = function (f) { f = String(f || '').trim(); if (f) facs[f] = facs[f] || { faculty:f, users:0, incidents:0, roles:{} }; return facs[f]; };
+  var touch = function (f) { f = canonUnit_(f); if (f) facs[f] = facs[f] || { faculty:f, users:0, incidents:0, roles:{} }; return facs[f]; };
   users.forEach(function (x) { var f = touch(x.faculty || x.unit); if (f) { f.users++; if (x.active !== false && String(x.active) !== 'false') f.roles[x.role] = (f.roles[x.role] || 0) + 1; } });
   incs.forEach(function (x) { var f = touch(x.faculty || x.unit); if (f) f.incidents++; });
 
@@ -2550,7 +2550,7 @@ function orgHeadcountSave_(p) {
     throw apiError_('VALIDATION_FAILED', 'บันทึกได้ครั้งละไม่เกิน 200 หน่วยงาน');
 
   var clean = input.map(function (r, i) {
-    var faculty = txt_(r && r.faculty, 200).trim();
+    var faculty = canonUnit_(txt_(r && r.faculty, 200));   /* เก็บด้วยชื่อตามผังปัจจุบันเสมอ */
     /* orgUnit ว่างได้ = แถวระดับ "ทั้งคณะ/หน่วยงาน" ซึ่งเป็นระดับที่ดัชนีถูกใช้จริง
        (บทบาทที่ดูดัชนีได้มีเฉพาะขอบเขตคณะและทั้งมหาวิทยาลัย ไม่มีขอบเขตหน่วยงานย่อย)
        แถวหน่วยงานย่อยยังกรอกได้ แต่ห้ามปนกับแถวระดับคณะในคณะเดียวกัน — ดูการตรวจด้านล่าง */
@@ -2567,6 +2567,8 @@ function orgHeadcountSave_(p) {
     var groups = cleanStaffGroups_(r && r.staffGroups, orgUnit || faculty);
     if (groups && groups.length) {
       var gs = staffGroupsTotals_(groups);
+      if (gs.people > 100000)
+        throw apiError_('VALIDATION_FAILED', 'จำนวนบุคลากรรวมของ ' + (orgUnit || faculty) + ' เกิน 100,000 คน กรุณาตรวจสอบ');
       return { faculty:faculty, orgUnit:orgUnit, headcount:gs.people, hoursPerYear:gs.avg,
                effectiveYear:year, staffGroups:groups };
     }
@@ -2718,7 +2720,7 @@ function reportFacultyIndex_() {
     if (pd) m.pd++;
   });
   var rows = Object.keys(fac).sort().map(function (k) { return fac[k]; });
-  return { faculties:rows, ownFaculty:String(u.faculty || '').trim(),
+  return { faculties:rows, ownFaculty:canonUnit_(u.faculty),
            defaultHoursPerYear:defaultHoursPerYear_(),
            generatedAt:now_() };
 }
