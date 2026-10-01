@@ -4027,6 +4027,10 @@ logout  = function(){
   ME = null;
   INCIDENTS = [];
   ROLE_COVERAGE = [];
+  /* ล้างข้อมูลรายงานที่แคชไว้ของผู้ใช้คนก่อน — ผู้ใช้คนถัดไปที่เข้าระบบในแท็บเดียวกันต้องไม่เห็นขอบเขตข้อมูลของคนก่อน */
+  ORG_HC = null; ORG_HC_STATE = 'idle'; ORG_HC_ERR = ''; ORG_HC_DIRTY = {};
+  FIX = null; FIX_STATE = 'idle'; FIX_ERR = ''; FIX_PERIOD = ''; FIX_GROUP = '';
+  HC_CALC = null; HC_CALC_ROW = 0; HC_CALC_OPEN = false; HC_BOX_OPEN = false;
   SYNC_MARK = '';
   LAST_SYNC = null;
   BUSY = false;
@@ -4095,7 +4099,17 @@ function manualRefresh(silent){
     if (PAGE === 'dash') document.getElementById('view').innerHTML = pgDash();
     else if (PAGE === 'list') document.getElementById('view').innerHTML = pgList();
     else if (PAGE === 'central') document.getElementById('view').innerHTML = pgCentral();
-    else if (PAGE === 'report') document.getElementById('view').innerHTML = pgReport();
+    else if (PAGE === 'report') {
+      /* รุ่น 2.8.9: กดรีเฟรชเอง = โหลดตัวเลขเปรียบเทียบรายคณะและทะเบียนบุคลากรใหม่ด้วย ไม่งั้นกราฟจะค้างค่าเก่า
+         ส่วนรีเฟรชอัตโนมัติ (silent) ห้ามวาดหน้าใหม่ระหว่างที่ผู้ใช้กำลังกรอกทะเบียน เพราะช่องที่พิมพ์อยู่จะหลุดโฟกัส */
+      var editing = Object.keys(ORG_HC_DIRTY).length ||
+        (document.activeElement && document.activeElement.closest && document.activeElement.closest('.hc-box,.fx-tools'));
+      if (!silent) {
+        FIX = null; FIX_STATE = 'idle';
+        if (!Object.keys(ORG_HC_DIRTY).length) { ORG_HC = null; ORG_HC_STATE = 'idle'; }
+      }
+      if (!silent || !editing) document.getElementById('view').innerHTML = pgReport();
+    }
     renderAlert();
     if (!silent) toast('อัปเดตข้อมูลล่าสุดจาก Google Sheets แล้ว');
   }, !!silent);
