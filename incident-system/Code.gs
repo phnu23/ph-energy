@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.13';
+var APP_VERSION = '2.8.14';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -205,6 +205,11 @@ var FACULTY_ADMIN_ASSIGNABLE = ['reporter','supervisor','office_head','deputy_de
 /* ผู้รับแจ้งเตือนระดับคณะ — ใช้ร่วมกันทั้งแจ้งเหตุระดับ 3 ขึ้นไป (notify_) และแจ้งมาตรการเกินกำหนด (notifyOverdueCapa_)
    เดิมเขียนรายการนี้ซ้ำสองที่ ถ้าเพิ่มบทบาทแล้วแก้ไม่ครบ ผู้รับจะไม่ตรงกันระหว่างสองอีเมลโดยไม่มีใครรู้ */
 var FACULTY_NOTIFY_ROLES = ['office_head','deputy_dean_sup','deputy_dean','dean','safety_committee'];
+/* ผู้รับอีเมลมาตรการเกินกำหนดรายวัน (รุ่น 2.8.14) — แยกจาก FACULTY_NOTIFY_ROLES ของอีเมลแจ้งเหตุ
+   ระดับคณะส่งเฉพาะรองคณบดี (กำกับดูแล) และคณบดี/ผู้อำนวยการกอง ของคณะนั้น
+   ระดับมหาวิทยาลัยส่งกองอาคารสถานที่ (ทุกคณะ) */
+var OVERDUE_FACULTY_ROLES = ['deputy_dean_sup','dean'];
+var OVERDUE_UNIVERSITY_ROLES = ['facility'];
 /* ผู้รับแจ้งเตือนระดับมหาวิทยาลัยของเหตุระดับ 3 ขึ้นไป */
 var UNIVERSITY_NOTIFY_ROLES = ['facility','vice_president_sup','president'];
 /* ระดับต่ำสุดที่แจ้งแต่ละบทบาทระดับมหาวิทยาลัย ตามตารางระดับความรุนแรง (SEV_UNI) — รุ่น 2.8.12
@@ -3546,8 +3551,8 @@ function notifyOverdueCapa_() {
   var sent = 0;
   Object.keys(byFaculty).forEach(function (fac) {
     var pick = users.filter(function (u) {
-      if (FACULTY_NOTIFY_ROLES.indexOf(u.role) >= 0) return sameFaculty_(u.faculty, fac);
-      return u.role === 'facility';
+      if (OVERDUE_FACULTY_ROLES.indexOf(u.role) >= 0) return sameFaculty_(u.faculty, fac);
+      return OVERDUE_UNIVERSITY_ROLES.indexOf(u.role) >= 0;
     });
     if (!pick.length) pick = users.filter(function (u) { return FALLBACK_NOTIFY_ROLES.indexOf(u.role) >= 0; });
     var to = pick.map(function (u) { return u.email; });
