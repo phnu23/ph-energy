@@ -3638,7 +3638,12 @@ const HAS_GAS = !HAS_EXTERNAL;
    ที่เป็นบัญชีเดียวกับ Effective user หรือบัญชีผู้ Deploy Web App */
 const SERVER_EDITOR_AUTO_START = String('<?!= editorAutoStart ?>') === 'true';
 /* เลขที่รายงานจากลิงก์ในอีเมลแจ้งเตือน (เซิร์ฟเวอร์ตรวจรูปแบบแล้ว) — เปิดหน้ารายละเอียดหลังเข้าสู่ระบบครั้งแรก */
-var INITIAL_INCIDENT = (function(v){ return /^IR-\d{4}-\d{3,}$/.test(v) ? v : ''; })(String('<?= initialIncident ?>'));
+/* ใช้แท็กพิมพ์แบบไม่ escape (แบบเดียวกับ editorAutoStart บรรทัดบน) เพราะแท็กพิมพ์แบบ escape ภายใน script
+   ถูก escape ตามบริบท JavaScript ซึ่งอาจห่อค่าด้วยเครื่องหมายคำพูด
+   ห้ามเขียนแท็ก template ของ Apps Script ลงในคอมเมนต์ เพราะ template ถูกประมวลผลก่อน JavaScript ทั้งไฟล์
+   แล้วรูปแบบเลขที่จะไม่ผ่าน ลิงก์จะไม่ทำงานเงียบ ๆ — ปลอดภัยเพราะ doGet() รับเฉพาะรูปแบบ IR-ปปปป-เลข (ไม่มีอักขระพิเศษ)
+   และตรวจรูปแบบซ้ำที่นี่อีกชั้น ตัดเครื่องหมายคำพูดที่อาจติดมาทิ้งก่อนตรวจ */
+var INITIAL_INCIDENT = (function(v){ v = v.replace(/^["']+|["']+$/g, ''); return /^IR-\d{4}-\d{3,}$/.test(v) ? v : ''; })(String('<?!= initialIncident ?>'));
 function gasRuntimeReady_(){
   return typeof google !== 'undefined' && !!google.script && !!google.script.run;
 }
