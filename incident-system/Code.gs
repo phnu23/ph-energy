@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.14';
+var APP_VERSION = '2.8.15';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -205,10 +205,10 @@ var FACULTY_ADMIN_ASSIGNABLE = ['reporter','supervisor','office_head','deputy_de
 /* ผู้รับแจ้งเตือนระดับคณะ — ใช้ร่วมกันทั้งแจ้งเหตุระดับ 3 ขึ้นไป (notify_) และแจ้งมาตรการเกินกำหนด (notifyOverdueCapa_)
    เดิมเขียนรายการนี้ซ้ำสองที่ ถ้าเพิ่มบทบาทแล้วแก้ไม่ครบ ผู้รับจะไม่ตรงกันระหว่างสองอีเมลโดยไม่มีใครรู้ */
 var FACULTY_NOTIFY_ROLES = ['office_head','deputy_dean_sup','deputy_dean','dean','safety_committee'];
-/* ผู้รับอีเมลมาตรการเกินกำหนดรายวัน (รุ่น 2.8.14) — แยกจาก FACULTY_NOTIFY_ROLES ของอีเมลแจ้งเหตุ
-   ระดับคณะส่งเฉพาะรองคณบดี (กำกับดูแล) และคณบดี/ผู้อำนวยการกอง ของคณะนั้น
+/* ผู้รับอีเมลมาตรการเกินกำหนดรายวัน (รุ่น 2.8.15) — แยกจาก FACULTY_NOTIFY_ROLES ของอีเมลแจ้งเหตุ
+   ระดับคณะส่งหัวหน้าสำนักงานฯ (ผู้บันทึกผลการติดตาม) รองคณบดี (กำกับดูแล) และคณบดี/ผู้อำนวยการกอง ของคณะนั้น
    ระดับมหาวิทยาลัยส่งกองอาคารสถานที่ (ทุกคณะ) */
-var OVERDUE_FACULTY_ROLES = ['deputy_dean_sup','dean'];
+var OVERDUE_FACULTY_ROLES = ['office_head','deputy_dean_sup','dean'];
 var OVERDUE_UNIVERSITY_ROLES = ['facility'];
 /* ผู้รับแจ้งเตือนระดับมหาวิทยาลัยของเหตุระดับ 3 ขึ้นไป */
 var UNIVERSITY_NOTIFY_ROLES = ['facility','vice_president_sup','president'];

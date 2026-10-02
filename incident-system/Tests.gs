@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.14
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.15
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -888,8 +888,8 @@ function unitStructure_() {
     ok_(unknown.length === 0, 'บทบาทที่ไม่มีในระบบ: ' + unknown.join(', '));
     ok_(String(notify_).indexOf('FACULTY_NOTIFY_ROLES') >= 0, 'notify_ ต้องใช้ FACULTY_NOTIFY_ROLES');
     ok_(String(notifyOverdueCapa_).indexOf('OVERDUE_FACULTY_ROLES') >= 0, 'notifyOverdueCapa_ ต้องใช้ OVERDUE_FACULTY_ROLES');
-    /* รุ่น 2.8.14: อีเมลมาตรการเกินกำหนดส่งเฉพาะรองคณบดี (กำกับดูแล) คณบดี/ผอ.กอง และกองอาคารสถานที่ */
-    eq_(OVERDUE_FACULTY_ROLES.slice().sort(), ['dean','deputy_dean_sup'], 'ผู้รับระดับคณะของอีเมลมาตรการเกินกำหนด');
+    /* รุ่น 2.8.15: อีเมลมาตรการเกินกำหนดส่งหัวหน้าสำนักงานฯ รองคณบดี (กำกับดูแล) คณบดี/ผอ.กอง และกองอาคารสถานที่ */
+    eq_(OVERDUE_FACULTY_ROLES.slice().sort(), ['dean','deputy_dean_sup','office_head'], 'ผู้รับระดับคณะของอีเมลมาตรการเกินกำหนด');
     eq_(OVERDUE_UNIVERSITY_ROLES, ['facility'], 'ผู้รับระดับมหาวิทยาลัยของอีเมลมาตรการเกินกำหนด');
     ok_(FALLBACK_NOTIFY_ROLES.every(function (r) { return ROLES[r]; }), 'ผู้รับสำรองต้องเป็นบทบาทที่มีอยู่');
     return ok_([notify_, notifyOverdueCapa_].every(function (f) { return String(f).indexOf('FALLBACK_NOTIFY_ROLES') >= 0; }),
