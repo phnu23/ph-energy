@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.12';
+var APP_VERSION = '2.8.13';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -174,8 +174,9 @@ var ROLES = {
   supervisor       : { scope:'orgUnit', can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
   /* edit = แก้ไขข้อมูลที่ผู้รายงานกรอก (editIncident_) — หัวหน้าสำนักงาน รองคณบดี (กำกับดูแล) และผู้ดูแลระบบ */
   office_head      : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1} },
-  /* รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัย ร่วมดำเนินการได้ */
-  deputy_dean_sup  : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1} },
+  /* รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัย ร่วมดำเนินการได้
+     ตั้งแต่รุ่น 2.8.13 บันทึกผลการติดตามและปิด (ติ๊กแล้วเสร็จ) มาตรการได้เช่นเดียวกับหัวหน้าสำนักงาน (monitor) */
+  deputy_dean_sup  : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:1,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1} },
   /* บทบาทกำกับดูแล: ดูภาพรวมและรายงานภาพรวมเท่านั้น ไม่แก้ไขข้อมูลปฏิบัติการ */
   deputy_dean      : { scope:'faculty', sensitiveAccess:1, oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0} },
   safety_committee : { scope:'faculty', oversight:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0} },
@@ -3539,7 +3540,8 @@ function notifyOverdueCapa_() {
 
   var users = readAll_('Users').filter(function (u) { return u.active; });
   var byFaculty = {};
-  rows.forEach(function (r) { var f = String(r.faculty || '').trim(); (byFaculty[f] = byFaculty[f] || []).push(r); });
+  rows.forEach(function (r) { var f = canonUnit_(r.faculty); (byFaculty[f] = byFaculty[f] || []).push(r); });
+  var appUrl = ScriptApp.getService().getUrl();
 
   var sent = 0;
   Object.keys(byFaculty).forEach(function (fac) {
@@ -3556,11 +3558,15 @@ function notifyOverdueCapa_() {
       /* เรื่องอ่อนไหวส่งเฉพาะจำนวนและวันครบกำหนด ไม่ส่งชื่อเรื่อง ตัวมาตรการ หรือผู้รับผิดชอบ
          เดิมอีเมลนี้ใส่ r.title และเนื้อมาตรการตรง ๆ ทั้งที่อีเมลแจ้งเหตุ (notify_) ปิดบังไว้แล้ว
          ผู้รับกลุ่มนี้มี คปอ. และกองอาคารสถานที่ ซึ่งไม่มีสิทธิ์อ่านเรื่องอ่อนไหวในระบบ */
+      /* ลิงก์ตรงไปที่เรื่อง (รุ่น 2.8.13) ผู้รับกดแล้วเปิดหน้ารายละเอียดเพื่อบันทึกผลการติดตามได้ทันที */
+      var link = '\n    เปิดเรื่อง: ' + appUrl + '?incident=' + encodeURIComponent(r.id);
       if (isSensitive_(r.cats)) return r.id + ' — ' + mailTitle_(r) + '\n    · มาตรการเกินกำหนด ' + late.length +
-        ' รายการ (กำหนดเร็วที่สุด ' + late.map(function (c) { return String(c.due).slice(0, 10); }).sort()[0] + ')';
+        ' รายการ (กำหนดเร็วที่สุด ' + late.map(function (c) { return String(c.due).slice(0, 10); }).sort()[0] + ')' + link;
       return r.id + ' — ' + mailTitle_(r) + '\n' + late.map(function (c) {
-        return '    · ' + c.m + ' (ผู้รับผิดชอบ ' + c.who + ', กำหนด ' + c.due + ')';
-      }).join('\n');
+        var days = Math.round((new Date(today) - new Date(String(c.due).slice(0, 10))) / 86400000);
+        return '    · ' + c.m + ' (ผู้รับผิดชอบ ' + c.who + ', กำหนด ' + String(c.due).slice(0, 10) +
+               (days > 0 ? ' · เกิน ' + days + ' วัน' : '') + ')';
+      }).join('\n') + link;
     }).join('\n\n');
 
     try {
@@ -3568,11 +3574,18 @@ function notifyOverdueCapa_() {
         to: to.join(','),
         subject: '[' + CONFIG.SYSTEM_NAME + '] มาตรการแก้ไขเกินกำหนด ' + byFaculty[fac].length + ' เรื่อง — ' + fac,
         body: ['มาตรการแก้ไขและป้องกันต่อไปนี้เลยกำหนดแล้วเสร็จแล้ว', '', lines, '',
-               'กรุณาติดตามกับผู้รับผิดชอบ และบันทึกผลการติดตามในระบบ', '',
-               'เปิดระบบ: ' + ScriptApp.getService().getUrl()].join('\n')
+               'กรุณาติดตามกับผู้รับผิดชอบ แล้วให้หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย หรือรองคณบดี (กำกับดูแล)',
+               'บันทึกผลการติดตามและติ๊กมาตรการที่แล้วเสร็จในระบบ (ปุ่ม "บันทึกผลการติดตามเพิ่มเติม" ในหน้ารายละเอียด)', '',
+               'เปิดระบบ: ' + appUrl].join('\n')
       });
       sent++;
-    } catch (e) { Logger.log('ส่งอีเมลเตือนไม่สำเร็จ: ' + e.message); }
+      try { audit_(SYSTEM_ACTOR, 'ส่งอีเมลมาตรการเกินกำหนด', fac,
+        byFaculty[fac].length + ' เรื่อง · ผู้รับ ' + to.length + ' คน'); } catch (ignore) {}
+    } catch (e) {
+      Logger.log('ส่งอีเมลเตือนไม่สำเร็จ: ' + e.message);
+      try { audit_(SYSTEM_ACTOR, 'ส่งอีเมลมาตรการเกินกำหนดไม่สำเร็จ', fac,
+        String(e && e.message || e).slice(0, 200), 'FAILED', 'MAIL_FAILED'); } catch (ignore2) {}
+    }
   });
   var out = 'พบ ' + rows.length + ' เรื่องที่มีมาตรการเกินกำหนด ส่งอีเมลแล้ว ' + sent + ' ฉบับ';
   Logger.log(out);

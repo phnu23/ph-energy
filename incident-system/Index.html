@@ -1045,8 +1045,8 @@ const ROLES={
   desc:"ผู้รับผิดชอบหลักของคณะ ประเมินระดับความรุนแรง ดำเนินการสอบสวน กำหนดและติดตามมาตรการ จนถึงปิดมาตรการแก้ไข",
   can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1}},
  deputy_dean_sup:{name:"รองคณบดี (กำกับดูแล)",short:"รองคณบดี (กำกับดูแล)",code:"DEPUTY_DEAN_SUP",scope:"faculty",sensitiveAccess:1,
-  desc:"รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัยของคณะ ร่วมประเมิน สอบสวน ให้ข้อเสนอแนะ และตรวจสอบผลการติดตามมาตรการ",
-  can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1}},
+  desc:"รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัยของคณะ ร่วมประเมิน สอบสวน ให้ข้อเสนอแนะ บันทึกผลการติดตามและปิดมาตรการ และตรวจสอบผลการติดตามมาตรการ",
+  can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:1,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1}},
  deputy_dean:{name:"รองคณบดี",short:"รองคณบดี",code:"DEPUTY_DEAN",scope:"faculty",sensitiveAccess:1,oversight:1,
   desc:"รองคณบดีใช้แดชบอร์ดติดตามและรายงานสถิติของคณะ",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0}},
@@ -1087,6 +1087,9 @@ const FACULTY_ADMIN_ASSIGNABLE=["reporter","supervisor","office_head","deputy_de
 
 /* ========== 4. ข้อมูล (ดึงจาก Google Sheets) ========== */
 function addD(ds,n){const d=new Date(ds);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)}
+/* วันที่วันนี้ตามเวลาเครื่อง (ไทย) — toISOString() เป็น UTC ช่วง 00:00–06:59 น. จะได้วันที่ของเมื่อวาน
+   มาตรการที่ครบกำหนดเมื่อวานจึงยังไม่ขึ้นว่าเกินกำหนดจนถึง 7 โมงเช้า (แก้ในรุ่น 2.8.13) */
+function localToday(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function fmtB(n){return n.toLocaleString("th-TH")}
 let INCIDENTS=[];
 
@@ -1253,7 +1256,7 @@ function hasSafetyCommittee(faculty){return hasRoleInFaculty("safety_committee",
    เรื่องจะได้ไม่ค้างที่ขั้นตรวจสอบจนปิดไม่ได้ */
 function needsReviewFallback(r){return !hasRoleInFaculty("deputy_dean_sup",facultyOf(r))}
 function overdueCapa(){
- const today=new Date().toISOString().slice(0,10);
+ const today=localToday();
  return active(visible(INCIDENTS)).filter(x=>x.status!=="closed"&&(x.capa||[]).some(c=>!c.done&&c.due&&c.due<today));
 }
 function renderAlert(){
@@ -1314,7 +1317,7 @@ function pgDash(){
  const closedPct=rows.length?Math.round(closed/rows.length*100):0;
  const severe=rows.filter(x=>(x.level||x.suggestLevel)>=3).length;
  const lateUni=rows.filter(x=>(x.level||0)>=3&&!x.uniReportAt&&x.status!=="closed").length;
- const today=new Date().toISOString().slice(0,10);
+ const today=localToday();
  /* ต้องไม่นับมาตรการที่ทำเสร็จแล้ว แม้จะเสร็จช้ากว่ากำหนด — ตัวเลขนี้คือ "งานที่ยังค้าง"
     เดิมขาด !c.done ทำให้แถบเตือน (overdueCapa) เงียบไปแล้ว แต่ KPI ยังค้างตัวเลขเดิมตลอดไป */
  const overdue=rows.filter(x=>x.status!=="closed"&&(x.capa||[]).some(c=>!c.done&&c.due&&c.due<today)).length;
@@ -1556,7 +1559,7 @@ let RP_PERIOD="12m";
 const RP_PERIODS={"all":"ตั้งแต่เริ่มระบบ","12m":"12 เดือนล่าสุด","ytd":"ปีปัจจุบัน","q":"ไตรมาสล่าสุด"};
 
 function rpRange(p){
- const now=new Date(), to=now.toISOString().slice(0,10);
+ const now=new Date(), to=localToday();
  if(p==="all")return{from:"",to:to};
  if(p==="ytd")return{from:now.getFullYear()+"-01-01",to:to};
  const d=new Date(now); d.setMonth(d.getMonth()-(p==="q"?3:12));
@@ -1642,7 +1645,7 @@ function rpRank(rows){
 /* ข้อค้นพบและข้อเสนอแนะที่สรุปจากข้อมูลจริง */
 function rpFindings(rows){
  const f=[],total=rows.length;
- const today=new Date().toISOString().slice(0,10);
+ const today=localToday();
  const lateUni=rows.filter(x=>(x.level||0)>=3&&!x.uniReportAt&&x.status!=="closed");
  const unassessed=rows.filter(x=>x.status==="submitted");
  /* นับเฉพาะมาตรการที่ยังไม่เสร็จและเลยกำหนด เหมือนแถบเตือนบนแดชบอร์ด
@@ -2050,7 +2053,7 @@ function idxRows(p){const r=rpRange(p);return idxRowsRange(r.from,r.to)}
    จึงต้องดึงข้อมูลให้ครอบคลุมทุกเดือนที่วาด มิฉะนั้นเดือนที่อยู่นอกช่วงจะเป็นศูนย์ทั้งที่มีข้อมูลจริง */
 function idxRowsMonths(m){
  const ks=monthKeys(m);
- return idxRowsRange(ks[0]+"-01", new Date().toISOString().slice(0,10));
+ return idxRowsRange(ks[0]+"-01", localToday());
 }
 
 /* ---- กราฟเส้นเปรียบเทียบ IFR และ ISR รายเดือน ----
@@ -2657,7 +2660,7 @@ function pgDetail(){
       ${esc(r.capaNote)||`<span class="pend">ยังไม่ได้บันทึก — บันทึกได้จากปุ่มด้านบนหลังกำหนดมาตรการแล้ว</span>`}</div>
     <div class="note ${esc(r.deputyNote)?"":"pale"}" style="margin-top:10px"><b>ข้อเสนอแนะและข้อคิดเห็นของรองคณบดี (กำกับดูแล):</b>
       ${esc(r.deputyNote)||`<span class="pend">ยังไม่ได้บันทึก — บันทึกได้จากปุ่มด้านบนหลังกำหนดมาตรการแล้ว</span>`}</div>
-    ${(()=>{const late=r.capa.filter(x=>!x.done&&x.due&&x.due<new Date().toISOString().slice(0,10));
+    ${(()=>{const late=r.capa.filter(x=>!x.done&&x.due&&x.due<localToday());
       return late.length&&r.status!=="closed"?`<div class="note crit" style="margin-top:14px"><b>เกินกำหนด ${late.length} รายการ</b> — ${late.map(x=>esc(x.m)+" ("+esc(x.who)+")").join(" · ")} ควรเร่งติดตามกับผู้รับผิดชอบ</div>`:""})()}
 
     <div class="note ${esc(r.monitorNote)?"":"pale"}" style="margin-top:14px"><b>ผลการติดตามล่าสุด:</b>
@@ -2854,7 +2857,7 @@ function submitClose(id){
 function dueTag(x){
  if(x.done)return `<span class="duetag ok">เสร็จแล้ว${x.doneAt?" "+thDate(x.doneAt):""}</span>`;
  if(!x.due)return "";
- const today=new Date().toISOString().slice(0,10);
+ const today=localToday();
  if(x.due<today){
   const d=Math.round((new Date(today)-new Date(x.due))/86400000);
   return `<span class="duetag late">เกินกำหนด ${d} วัน</span>`;
@@ -3161,7 +3164,7 @@ function rmCapaRow(i){CAPA_ROWS.splice(i,1);renderCapaRows()}
 
 function openInvestigate(id){
  const r=INCIDENTS.find(x=>x.id===id); if(!r)return toast("ไม่พบรายงานนี้");
- const today=new Date().toISOString().slice(0,10);
+ const today=localToday();
  ovlShell("บันทึกผลการประชุมสอบสวน",
   "ระบุวันเวลาและสถานที่ประชุม พร้อมสาเหตุที่วิเคราะห์ได้ ข้อมูลนี้จะปรากฏในรายงานและใช้จัดทำสถิติสาเหตุการเกิด",
   `<div class="grid g2">

@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.12
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.13
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -200,6 +200,13 @@ function unitHeadcount_() {
         'รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดีไม่รับอีเมล');
     ok_(String(notify_).indexOf('isSensitive_(rec.cats)') >= 0, 'อีเมลเรื่องอ่อนไหวต้องไม่ใส่สถานที่');
     return ok_(String(assessIncident_).indexOf('before.suggestLevel') >= 0, 'ประเมินครั้งแรกไม่ส่งซ้ำถ้าระดับไม่สูงขึ้น');
+  });
+
+  /* รุ่น 2.8.13 — หัวหน้าสำนักงานฯ และรองคณบดี (กำกับดูแล) บันทึกผลการติดตามและปิดมาตรการได้ */
+  t_('ผู้ปิดมาตรการ (สิทธิ์ monitor)', function () {
+    var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].can.monitor; }).sort();
+    eq_(holders, ['deputy_dean_sup','office_head'], 'บทบาทที่บันทึกผลการติดตาม/ปิดมาตรการได้');
+    return ok_(String(notifyOverdueCapa_).indexOf('audit_(') >= 0, 'อีเมลมาตรการเกินกำหนดต้องบันทึกร่องรอย');
   });
 
   /* กราฟเปรียบเทียบรายคณะคืนเฉพาะตัวเลขรวม เปิดให้ผู้บริหารที่ดูดัชนีได้และผู้ดูแลระบบ */
