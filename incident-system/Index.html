@@ -1274,6 +1274,8 @@ function renderAlert(){
  /* ต้องใช้ x.level ที่ประเมินแล้วเท่านั้น ไม่ใช่ suggestLevel ที่ผู้รายงานกรอกมาเอง
     ปุ่ม "รายงานมหาวิทยาลัย" และ reportToUniversity_ ฝั่งเซิร์ฟเวอร์ต่างก็ใช้ระดับที่ประเมินแล้ว
     เดิมแถบเตือนนับเรื่องที่ยังไม่ผ่านการประเมิน ผู้ใช้กดเข้าไปแล้วไม่มีปุ่มให้ทำอะไรได้เลย */
+ /* ผู้รายงานไม่มีหน้าที่รายงานมหาวิทยาลัยหรือติดตามมาตรการ แถบเตือนงานค้างจึงไม่แสดง (รุ่น 2.8.19) — ลดข้อมูลบนหน้าจอผู้รายงาน */
+ if(ME&&ME.role==="reporter"){const host=document.getElementById("alertHost");if(host)host.innerHTML="";return;}
  const late=active(visible(INCIDENTS)).filter(x=>(x.level||0)>=3&&!x.uniReportAt&&x.status!=="closed");
  const unassessed=active(visible(INCIDENTS)).filter(x=>x.status==="submitted");
  let html="";
