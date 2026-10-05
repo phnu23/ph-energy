@@ -1302,7 +1302,7 @@ function dashFacultyOptions(scoped){
  if(scope!=="all"){
   const mine=userFaculty(ME);
   const opts=[mine].concat(Object.keys(count).filter(u=>u!==mine)).filter(Boolean);
-  return opts.map(u=>`<option${u===DASH_FACULTY?" selected":""}>${esc(u)}</option>`).join("");
+  return opts.map(u=>`<option${u===DASH_FACULTY?" selected":""} value="${esc(u)}">${esc(u)}${u!==mine?" (เฉพาะระดับ 3 ขึ้นไป)":""}</option>`).join("");
  }
  return ORG.map(g=>{
   const inner=g.units.map(u=>{
@@ -1313,7 +1313,7 @@ function dashFacultyOptions(scoped){
  }).join("");
 }
 function dashOrgUnitOptions(scoped){
- const base=scoped.filter(x=>!DASH_FACULTY||facultyOf(x)===DASH_FACULTY);
+ const base=scoped.filter(x=>DASH_FACULTY?facultyOf(x)===DASH_FACULTY:!isCross(x));
  const count={};
  base.forEach(x=>{const u=orgUnitOf(x);if(u)count[u]=(count[u]||0)+1});
  const arr=Object.keys(count).sort((a,b)=>a.localeCompare(b,"th"));
@@ -1324,7 +1324,10 @@ function dashOrgUnitOptions(scoped){
 function pgDash(){
  const scoped=active(overviewRows(INCIDENTS));   /* สถิติไม่นับเรื่องที่ยกเลิก */
  const years=[...new Set(scoped.map(x=>(x.date||"").slice(0,4)).filter(Boolean))].sort().reverse();
- const rows=scoped.filter(x=>(!DASH_FACULTY||facultyOf(x)===DASH_FACULTY)&&(!DASH_ORGUNIT||orgUnitOf(x)===DASH_ORGUNIT)&&(!DASH_YEAR||(x.date||"").slice(0,4)===DASH_YEAR));
+ /* คณบดี / ผอ.กอง: ค่าเริ่มต้นนับเฉพาะเรื่องของหน่วยงานตนเอง (รุ่น 2.8.20)
+    เรื่องระดับ 3+ ของหน่วยงานอื่น (crossOnly) แสดงเมื่อเลือกหน่วยงานนั้นจากตัวกรองเท่านั้น
+    เดิมนับรวมใน KPI "ยังไม่ปิดเรื่อง" และ "ยังไม่ได้รายงานมหาวิทยาลัย" ซึ่งเป็นงานที่คณบดีทำแทนไม่ได้ */
+ const rows=scoped.filter(x=>(DASH_FACULTY?facultyOf(x)===DASH_FACULTY:!isCross(x))&&(!DASH_ORGUNIT||orgUnitOf(x)===DASH_ORGUNIT)&&(!DASH_YEAR||(x.date||"").slice(0,4)===DASH_YEAR));
  const open=rows.filter(x=>x.status!=="closed").length;
  const closed=rows.filter(x=>x.status==="closed").length;
  const closedPct=rows.length?Math.round(closed/rows.length*100):0;
@@ -1344,7 +1347,7 @@ function pgDash(){
   <div class="filters" style="margin:0">
    <div class="fld wide"><label class="f">คณะ/หน่วยงานหลัก <span>(${ROLES[ME.role].scope==="all"?ALL_UNITS.length+" หน่วยงาน":"ในขอบเขตสิทธิ์"})</span></label>
     <select onchange="setDashFilter('faculty',this.value)">
-    <option value="">ทุกคณะในขอบเขตสิทธิ์</option>${dashFacultyOptions(scoped)}</select></div>
+    <option value="">${ROLES[ME.role].scope==="all"?"ทุกคณะในขอบเขตสิทธิ์":"หน่วยงานของท่าน"}</option>${dashFacultyOptions(scoped)}</select></div>
    <div class="fld wide"><label class="f">หน่วยงานในคณะ</label><select onchange="setDashFilter('orgUnit',this.value)">
     <option value="">ทุกหน่วยงานในขอบเขตสิทธิ์</option>${dashOrgUnitOptions(scoped)}</select></div>
    <div class="fld"><label class="f">ปี ค.ศ.</label><select onchange="setDashFilter('year',this.value)">
@@ -1580,7 +1583,9 @@ function rpRange(p){
 }
 function rpRows(p){
  const r=rpRange(p);
- let list=active(overviewRows(INCIDENTS));   /* รายงานสถิติไม่นับเรื่องที่ยกเลิก */
+ /* หน้ารายงานภาพรวมแสดงขอบเขต "คณะของท่าน" จึงไม่นับเรื่องข้ามคณะของคณบดี (รุ่น 2.8.20)
+    เดิมยอดรวมรวมเรื่องระดับ 3+ ของคณะอื่นเข้ามา ไม่ตรงกับขอบเขตที่แสดงและไม่ตรงกับดัชนี */
+ let list=active(overviewRows(INCIDENTS)).filter(x=>!isCross(x));   /* รายงานสถิติไม่นับเรื่องที่ยกเลิก */
  if(ME&&ROLES[ME.role].reportLevel3)list=list.filter(x=>(x.level||x.suggestLevel)>=3); // รายงานสถิติสำหรับผู้บริหารจำกัดระดับ 3 ขึ้นไป
  return list.filter(x=>{const d=x.date||"";return d&&(!r.from||d>=r.from)&&d<=r.to});
 }
@@ -1594,7 +1599,7 @@ function rpPrev(p){
  /* ต้องคัดชุดข้อมูลด้วยกติกาเดียวกับ rpRows() ทุกข้อ ไม่งั้นเทียบคนละประชากรกัน
     เดิมใช้ visible() เปล่า ๆ ช่วงก่อนหน้าจึงรวมเรื่องที่ยกเลิกและรวมทุกระดับ
     ขณะที่ช่วงปัจจุบันตัดทั้งสองอย่างออก ลูกศร ▲▼ จึงชี้ผิดทางเป็นประจำ */
- let list=active(overviewRows(INCIDENTS));
+ let list=active(overviewRows(INCIDENTS)).filter(x=>!isCross(x));
  if(ME&&ROLES[ME.role].reportLevel3)list=list.filter(x=>(x.level||x.suggestLevel)>=3);
  return list.filter(x=>{const d=x.date||"";return d&&d>=pf.toISOString().slice(0,10)&&d<r.from});
 }
