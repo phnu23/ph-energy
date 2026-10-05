@@ -1199,11 +1199,13 @@ function buildNav(){
  /* Dashboard รายงานภาพรวม อยู่บนสุดตามที่คณะกำหนด ส่วนผู้รายงานไม่มีเมนูนี้
     หน้าที่เปิดขึ้นมาเป็นหน้าแรกยังเป็น Dashboard ติดตามอุบัติการณ์ เพราะผู้รายงานเข้าเมนูบนสุดไม่ได้ */
  if(ME.role!=="reporter")items.push({p:"report",l:"Dashboard รายงานภาพรวม"});
- items.push({p:"dash",l:"Dashboard ติดตามอุบัติการณ์"});
+ /* ผู้รายงานไม่เห็น Dashboard ทั้งสองหน้า (รุ่น 2.8.18) — ข้อมูลมากเกินความจำเป็นสำหรับผู้รายงาน
+    เมนูของผู้รายงานจึงเหลือ เขียนรายงาน และรายงานของฉัน (รายการเรื่องที่ตนเองรายงาน) */
+ if(ME.role!=="reporter")items.push({p:"dash",l:"Dashboard ติดตามอุบัติการณ์"});
  if(r.can.create)items.push({p:"new",l:"เขียนรายงานอุบัติการณ์"});
  /* บทบาทกำกับดูแลใช้ข้อมูลระดับภาพรวม ไม่เข้าถึงรายเรื่องเพื่อคงความเป็นเจ้าของข้อมูลไว้ที่คณะ */
  if(!r.oversight||r.execRead){
-  items.push({p:"list",l:r.execRead?"รายงานอุบัติการณ์ระดับ 3 ขึ้นไป":"รายงานอุบัติการณ์",n:open});
+  items.push({p:"list",l:r.execRead?"รายงานอุบัติการณ์ระดับ 3 ขึ้นไป":ME.role==="reporter"?"รายงานของฉัน":"รายงานอุบัติการณ์",n:open});
   items.push({p:"search",l:"ค้นหาย้อนหลัง"});
  }
  items.push({k:"ข้อมูลอ้างอิง"});
@@ -1231,6 +1233,8 @@ function ownReport(r){
  return (mail&&String(r.reporterEmail||"").toLowerCase()===mail)||r.reporter===ME.name;
 }
 function go(p,id){
+ /* ผู้รายงานเข้า Dashboard ไม่ได้ทั้งจากเมนู ลิงก์ หรือการรีเฟรช — พาไปหน้ารายงานของฉันแทน */
+ if(ME&&ME.role==="reporter"&&(p==="dash"||p==="report"))p="list";
  const ownDetail=p==="detail"&&ownReport(INCIDENTS.find(x=>x.id===(id!==undefined?id:CURRENT)));
  /* ผู้บริหารระดับมหาวิทยาลัย (execRead) เข้ารายการ ค้นหา และรายละเอียดได้ (เฉพาะระดับ 3 ขึ้นไป — กรองที่ visible() และเซิร์ฟเวอร์) */
  const execOk=ROLES[ME.role].execRead&&["list","detail","search"].includes(p);
