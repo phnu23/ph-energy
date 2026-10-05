@@ -493,11 +493,18 @@ textarea{min-height:92px;resize:vertical}
 .capa-tbl{width:100%;border-collapse:collapse}
 .capa-tbl th{text-align:left;font-size:11.5px;color:var(--steel);font-weight:600;padding:4px 5px}
 .capa-tbl td{padding:4px 5px;vertical-align:top}
-.capa-tbl input{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:8px;
+.capa-tbl input:not([type=checkbox]){width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:8px;
  font-family:var(--font-ui);font-size:13px;color:var(--ink)}
-.capa-tbl input:focus{outline:0;border-color:var(--saed);box-shadow:0 0 0 3px var(--saed-tint)}
+.capa-tbl input:not([type=checkbox]):focus{outline:0;border-color:var(--saed);box-shadow:0 0 0 3px var(--saed-tint)}
 .capa-tbl td:nth-child(3){width:140px}
-.capa-tbl td:last-child{width:34px}
+.capa-tbl td:last-child:not(:first-child){width:34px}
+/* ตารางติ๊กผลการติดตามมาตรการ (รุ่น 2.8.17) — แถวละหนึ่งช่อง ต้องไม่โดนกติกาความกว้างของตารางกำหนดมาตรการ
+   เดิมช่อง checkbox โดน width:100% จาก .capa-tbl input และช่องเดียวในแถวโดน td:last-child{width:34px}
+   ข้อความมาตรการจึงถูกบีบเหลือคอลัมน์แคบ ๆ ทางขวา อ่านไม่ได้ */
+#monBody td{width:auto;padding:4px 0}
+#monBody .ckline{margin:0 0 6px;cursor:pointer;line-height:1.55}
+#monBody .ckline input{width:18px;height:18px;margin-top:2px;flex:none}
+#monBody .ckline span{flex:1;min-width:0;overflow-wrap:anywhere}
 .ovl-box{max-width:640px}
 
 /* ---- ช่องตำแหน่งบนแผนที่ ---- */
