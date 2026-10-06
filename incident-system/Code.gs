@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.20';
+var APP_VERSION = '2.8.21';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -188,9 +188,11 @@ var ROLES = {
   facility         : { scope:'all',     can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   /* ผู้บริหารระดับมหาวิทยาลัย — ตั้งแต่รุ่น 2.8.1 รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดี
      เห็น Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัยเช่นเดียวกับอธิการบดี (ถอด level3Only ออก)
-     ยังเป็นบทบาทกำกับดูแล (oversight) จึงไม่เข้าถึงรายละเอียดรายเรื่องและไม่แก้ไขข้อมูลปฏิบัติการ */
-  vice_president     : { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
-  assistant_president: { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+     ยังเป็นบทบาทกำกับดูแล (oversight) จึงไม่เข้าถึงรายละเอียดรายเรื่องและไม่แก้ไขข้อมูลปฏิบัติการ
+     reportOnly (รุ่น 2.8.21): รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดี ใช้เฉพาะ Dashboard รายงานภาพรวม
+     ไม่มี Dashboard ติดตามอุบัติการณ์ — ข้อมูลชุดเดียวกัน ธงนี้กำหนดเมนูฝั่งหน้าจอ ไม่เปลี่ยนสิทธิ์ข้อมูล */
+  vice_president     : { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, reportOnly:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
+  assistant_president: { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, reportOnly:1, can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   vice_president_sup : { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   president          : { scope:'all', sensitiveAccess:1, oversight:1, execRead:1, uniAlert:1,  can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:0,uniReport:0,ack:0,monitor:0,close:0,cross:1,exportAll:1,safetyIndex:1,cancel:0,admin:0} },
   /* ผู้ดูแลระบบแก้ข้อมูลรายงาน (edit) ได้ทุกคณะ ยกเว้นเรื่องอ่อนไหว เพราะไม่มี sensitiveAccess (findScoped_ ปฏิเสธเอง) */

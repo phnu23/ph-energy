@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.20
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.21
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -190,6 +190,22 @@ function unitHeadcount_() {
     ok_(!mine.summaryOnly, 'ผู้รายงานเห็นเรื่องของตนเองครบ');
     var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].execRead; }).sort();
     return eq_(holders, ['assistant_president','president','vice_president','vice_president_sup'], 'บทบาทที่มี execRead');
+  });
+
+  /* รุ่น 2.8.21 — รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดี ใช้เฉพาะ Dashboard รายงานภาพรวม
+     ยังคงเห็นทุกระดับทั้งมหาวิทยาลัย เปรียบเทียบดัชนีรายคณะได้ และอ่านรายละเอียดระดับ 3 ขึ้นไปได้อย่างเดียว */
+  t_('รองอธิการบดี/ผู้ช่วยอธิการบดี ใช้เฉพาะรายงานภาพรวม', function () {
+    var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].reportOnly; }).sort();
+    eq_(holders, ['assistant_president','vice_president'], 'บทบาทที่มี reportOnly');
+    holders.forEach(function (r) {
+      var R = ROLES[r];
+      ok_(R.scope === 'all' && !R.level3Only, r + ' เห็นทุกระดับทั้งมหาวิทยาลัย');
+      ok_(R.execRead && R.can.safetyIndex, r + ' อ่านระดับ 3+ และเปรียบเทียบดัชนีรายคณะได้');
+      ['confirm','assess','investigate','capa','review','uniReport','ack','monitor','close','cancel','admin'].forEach(function (k) {
+        ok_(!R.can[k], r + ' ไม่มีสิทธิ์ ' + k + ' (อ่านอย่างเดียว)');
+      });
+    });
+    return 'ผ่าน (' + holders.join(', ') + ')';
   });
 
   /* รุ่น 2.8.12 — ผู้รับอีเมลระดับมหาวิทยาลัยตามตารางระดับความรุนแรง */
