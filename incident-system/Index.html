@@ -1708,7 +1708,7 @@ function rpFindings(rows){
  const closed=rows.filter(x=>x.status==="closed").length;
  const cm={};rows.forEach(r=>(r.causes||[]).forEach(c=>cm[c]=(cm[c]||0)+1));
  const topCause=Object.entries(cm).sort((a,b)=>b[1]-a[1])[0];
- const um={};rows.forEach(r=>{const k=ROLES[ME.role].scope==="all"?facultyOf(r):orgUnitOf(r);um[k]=(um[k]||0)+1});
+ const um={};rows.forEach(r=>{const k=ROLES[ME.role].scope==="all"||(rpUniOk()&&RP_SCOPE==="uni")?facultyOf(r):orgUnitOf(r);um[k]=(um[k]||0)+1});
  const topUnit=Object.entries(um).sort((a,b)=>b[1]-a[1])[0];
 
  if(lateUni.length)f.push({c:"crit",t:`มี ${lateUni.length} เรื่องระดับ 3 ขึ้นไปที่ยังไม่บันทึกการรายงานมหาวิทยาลัย`,
@@ -4153,6 +4153,8 @@ logout  = function(){
   ORG_HC = null; ORG_HC_STATE = 'idle'; ORG_HC_ERR = ''; ORG_HC_DIRTY = {};
   FIX = null; FIX_STATE = 'idle'; FIX_ERR = ''; FIX_PERIOD = ''; FIX_GROUP = '';
   HC_CALC = null; HC_CALC_ROW = 0; HC_CALC_OPEN = false; HC_BOX_OPEN = false;
+  /* ตัวกรองหน้าจอของผู้ใช้คนก่อนไม่ควรติดไปกับผู้ใช้คนถัดไป (2.8.26) */
+  DASH_FACULTY = ''; DASH_ORGUNIT = ''; DASH_YEAR = ''; RP_SCOPE = 'mine'; CT_FAC = ''; CT_YEAR = ''; CT_MONTH = '';
   SYNC_MARK = '';
   LAST_SYNC = null;
   BUSY = false;
