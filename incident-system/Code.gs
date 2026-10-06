@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.21';
+var APP_VERSION = '2.8.22';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1260,13 +1260,12 @@ function scoped_(u, list) {
   else if (role.scope === 'all')   out = list;
   else if (role.scope === 'faculty') {
     out = list.filter(function (x) { return inScope_(u, x); });
-    /* คณบดี / ผู้อำนวยการกอง เห็นภาพรวมของหน่วยงานอื่นได้เฉพาะระดับ 3 ขึ้นไป
-       เพื่อใช้เรียนรู้เหตุรุนแรงข้ามหน่วยงาน แถวเหล่านี้มีเครื่องหมาย crossOnly กำกับไว้
-       ใช้ได้เฉพาะหน้าภาพรวมและรายงานภาพรวม เปิดอ่านรายละเอียดหรือแก้ไขไม่ได้ */
+    /* คณบดี / ผู้อำนวยการกอง (รุ่น 2.8.22) — Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย
+       เรื่องของหน่วยงานอื่นส่งไปทุกระดับ แต่ในรูปแบบที่ต่างกัน (จัดการใน map ด้านล่าง)
+       ระดับ 1–2 → แถวสรุป (summaryOnly) มีเฉพาะตัวเลขที่ใช้นับ ไม่มีเนื้อหา
+       ระดับ 3+ → อ่านรายละเอียดได้ ติดธง crossRead = อ่านอย่างเดียว (findScopedRaw_ ปฏิเสธทุกการแก้ไข) */
     if (role.crossLevel3) {
-      out = out.concat(list.filter(function (x) {
-        return !sameFaculty_(x.faculty, u.faculty) && (x.level || x.suggestLevel) >= 3;
-      }).map(crossStub_));
+      out = out.concat(list.filter(function (x) { return !sameFaculty_(x.faculty, u.faculty); }));
     }
   }
   else out = list.filter(function (x) { return inScope_(u, x); });
@@ -1277,16 +1276,22 @@ function scoped_(u, list) {
     /* ผู้รายงานต้องเห็นเรื่องของตนเองเสมอ แม้เป็นประเภทข้อมูลอ่อนไหว
        มิฉะนั้นคนที่แจ้งเรื่องการคุกคามหรือภาวะวิกฤต จะติดตามเรื่องของตัวเองไม่ได้เลย */
     var mine = isOwner_(u, x);
-    if (role.execRead && !mine && effLevel_(x) < EXEC_DETAIL_MIN_LEVEL) return execSummary_(x);
+    var crossRead = !!role.crossLevel3 && role.scope === 'faculty' && !mine && !sameFaculty_(x.faculty, u.faculty);
+    if ((role.execRead || crossRead) && !mine && effLevel_(x) < EXEC_DETAIL_MIN_LEVEL) return execSummary_(x);
     /* บทบาทระดับคณะเข้าถึงเรื่องอ่อนไหวได้เฉพาะของหน่วยงานตนเอง
        เดิมไม่ต้องตรวจเพราะขอบเขตจำกัดอยู่แล้ว แต่ตอนนี้เห็นข้ามหน่วยงานได้ จึงต้องตรวจ */
     var sameFac = role.scope !== 'faculty' || sameFaculty_(x.faculty, u.faculty);
-    if (isSensitive_(x.cats) && !(canSee && sameFac) && !mine) return maskSensitive_(x);
+    if (isSensitive_(x.cats) && !(canSee && sameFac) && !mine) {
+      var masked = maskSensitive_(x);
+      if (crossRead) masked.crossRead = true;
+      return masked;
+    }
     /* คัดลอกก่อนแก้เสมอ เพราะแถวเดียวกันถูกใช้ซ้ำจากแคชภายในคำสั่งเดียวกัน
        ถ้าแก้ของเดิมโดยตรง ค่าที่ลบออกเพื่อส่งให้หน้าจอจะติดไปถึงตอนเขียนกลับลงชีต */
     var o = {};
     Object.keys(x).forEach(function (k) { o[k] = x[k]; });
     o.restricted = false;
+    if (crossRead) o.crossRead = true;
     /* อีเมลผู้รายงานเก็บไว้ในชีตเสมอเพื่อการตรวจสอบ แต่ไม่ส่งออกไปให้ผู้อื่นเห็น
        ส่งกลับเฉพาะของตัวผู้เรียกเอง เพราะหน้าจอใช้ตรวจว่าเป็นเรื่องของตนหรือไม่ */
     if (!mine) o.reporterEmail = '';
@@ -1298,20 +1303,6 @@ function scoped_(u, list) {
     }
     return o;
   });
-}
-
-/* แถวภาพรวมข้ามหน่วยงานใช้ allowlist เท่านั้น ช่องใหม่ที่เพิ่มภายหลังจึงไม่รั่วออกเอง
-   ไม่ส่งชื่อเรื่อง รายละเอียด สถานที่ ผู้เกี่ยวข้อง บันทึกการรักษา ไฟล์ หรือไทม์ไลน์ข้ามคณะ */
-var CROSS_KEEP = ['id','createdAt','updatedAt','status','level','suggestLevel','kind','cats','date',
-                  'faculty','orgUnit','unit','injuryAxis','damageAxis','damageBaht','daysOff',
-                  'monitor','uniReportAt','cancelledAt','version'];
-function crossStub_(x) {
-  var o = { title:'(ข้อมูลภาพรวมระดับ 3 ขึ้นไปจากหน่วยงานอื่น)', detail:'', reporter:'', reporterEmail:'',
-            reporterPos:'', place:'', mapUrl:'', activity:'', course:'', treat:'', assets:'', firstAid:'',
-            involved:[], parts:[], causes:[], capa:[], files:[], log:[] };
-  CROSS_KEEP.forEach(function (k) { o[k] = x[k]; });
-  o.crossOnly = true;
-  return o;
 }
 
 /* แถวสรุปเชิงสถิติ — เก็บเฉพาะตัวเลขที่ดัชนีความปลอดภัยต้องใช้
@@ -2195,15 +2186,16 @@ function findScopedRaw_(u, id) {
   if (!r) throw apiError_('NOT_FOUND', 'ไม่พบรายงานนี้ หรืออยู่นอกขอบเขตสิทธิ์ของท่าน');
   if (r.summaryOnly) {
     audit_(u, 'ถูกปฏิเสธการเข้าถึงรายละเอียด', id, 'ผู้บริหารเห็นเรื่องระดับ 1–2 เฉพาะในสถิติ');
-    throw apiError_('FORBIDDEN', 'เรื่องระดับ 1–2 แสดงเฉพาะในสถิติ ผู้บริหารระดับมหาวิทยาลัยเปิดรายละเอียดได้เฉพาะเรื่องระดับ 3 ขึ้นไป');
+    throw apiError_('FORBIDDEN', 'เรื่องระดับ 1–2 แสดงเฉพาะในสถิติ ท่านเปิดรายละเอียดได้เฉพาะเรื่องระดับ 3 ขึ้นไป');
   }
   if (r.statOnly) {
     audit_(u, 'ถูกปฏิเสธการเข้าถึงรายละเอียด', id, 'บทบาทนี้เห็นเรื่องนี้เฉพาะในสถิติ');
     throw apiError_('FORBIDDEN', 'เรื่องนี้อยู่ในสถิติของท่านแต่ไม่อยู่ในสิทธิ์การอ่านรายละเอียด');
   }
-  if (r.crossOnly) {
-    audit_(u, 'ถูกปฏิเสธการเข้าถึงรายละเอียด', id, 'เรื่องของหน่วยงานอื่น เห็นได้เฉพาะภาพรวม');
-    throw apiError_('FORBIDDEN', 'เรื่องนี้เป็นของหน่วยงานอื่น ท่านเห็นได้เฉพาะในภาพรวมและรายงานภาพรวม');
+  /* เรื่องระดับ 3+ ของหน่วยงานอื่นที่คณบดีอ่านได้ — findScopedRaw_ ใช้กับคำสั่งแก้ไขทุกคำสั่ง จึงปฏิเสธที่นี่จุดเดียว */
+  if (r.crossRead) {
+    audit_(u, 'ถูกปฏิเสธสิทธิ์', id, 'เรื่องของหน่วยงานอื่น อ่านได้อย่างเดียว');
+    throw apiError_('FORBIDDEN', 'เรื่องนี้เป็นของหน่วยงานอื่น ท่านอ่านรายละเอียดได้อย่างเดียว ดำเนินการใด ๆ ไม่ได้');
   }
   if (r.restricted) {
     audit_(u, 'ถูกปฏิเสธการเข้าถึงข้อมูลอ่อนไหว', id, 'บทบาท ' + u.role);

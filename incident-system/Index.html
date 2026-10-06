@@ -1061,7 +1061,7 @@ const ROLES={
   desc:"คณะกรรมการความปลอดภัยฯ ใช้แดชบอร์ดติดตามและรายงานสถิติได้ (คณะที่ยังไม่มี คปอ. ไม่ต้องกำหนดผู้ใช้ในบทบาทนี้)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0}},
  dean:{name:"คณบดี / ผู้อำนวยการกอง",short:"คณบดี",code:"DEAN",scope:"faculty",sensitiveAccess:1,crossLevel3:1,
-  desc:"รับทราบทุกระดับ รายงานมหาวิทยาลัยกรณีระดับ 3 ขึ้นไป รับทราบผลการดำเนินการก่อนปิดเรื่อง ดู Dashboard รายงานภาพรวมและเปรียบเทียบดัชนีความปลอดภัยรายคณะ",
+  desc:"รับทราบทุกระดับ รายงานมหาวิทยาลัยกรณีระดับ 3 ขึ้นไป รับทราบผลการดำเนินการก่อนปิดเรื่อง ใช้แดชบอร์ดติดตามของหน่วยงาน ดู Dashboard รายงานภาพรวมของหน่วยงาน และ Dashboard รายงานภาพรวมทุกระดับทั้งมหาวิทยาลัย พร้อมเปรียบเทียบดัชนีความปลอดภัยรายคณะ และเปิดอ่านรายละเอียดอุบัติการณ์ระดับ 3 ขึ้นไปของหน่วยงานอื่นได้ (อ่านอย่างเดียว)",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,suggest:0,suggestSup:0,review:1,uniReport:1,ack:1,monitor:0,close:0,cross:0,exportAll:1,safetyIndex:1,cancel:0,admin:0}},
  faculty_admin:{name:"ผู้ดูแลระดับคณะ",short:"ผู้ดูแลคณะ",code:"FACULTY_ADMIN",scope:"faculty",
   desc:"จัดการทะเบียนผู้ใช้และสิทธิ์เฉพาะคณะของตนเอง ไม่เห็นผู้ใช้ของคณะอื่น และไม่มีสิทธิ์ระดับระบบ",
@@ -1112,6 +1112,14 @@ let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
    แถวที่กว้างกว่าชั้นแรกจะมีเครื่องหมายกำกับไว้ และเปิดอ่านรายละเอียดไม่ได้ทั้งสองแบบ */
 const isStat=x=>!!(x&&x.statOnly);
 const isCross=x=>!!(x&&x.crossOnly);
+/* คณบดี / ผอ.กอง (รุ่น 2.8.22): เรื่องของหน่วยงานอื่นมาถึงหน้าจอทุกระดับ เพื่อ Dashboard รายงานภาพรวมทั้งมหาวิทยาลัย
+   ระดับ 3+ ติดธง crossRead (อ่านรายละเอียดได้อย่างเดียว) ระดับ 1–2 เป็นแถวสรุป summaryOnly
+   แถวเหล่านี้ไม่เข้ารายการ งานที่ต้องทำ แถบเตือน Dashboard ติดตาม หรือดัชนีของคณะ */
+const isCrossRead=x=>!!(x&&x.crossRead);
+const isOtherUnit=x=>!!(x&&(x.crossOnly||x.crossRead||(x.summaryOnly&&ME&&ROLES[ME.role].scope==="faculty")));
+let RP_SCOPE="mine";   /* "mine" = คณะของท่าน · "uni" = ทั้งมหาวิทยาลัย (เฉพาะบทบาทที่มี crossLevel3) */
+const rpUniOk=()=>!!(ME&&ROLES[ME.role].crossLevel3);
+const rpScopeOk=x=>(rpUniOk()&&RP_SCOPE==="uni")||!isOtherUnit(x);
 
 function overviewRows(list){
  if(!ME)return[];
@@ -1139,7 +1147,7 @@ function statVisible(list){
 function visible(list){
  if(!ME)return[];
  const r=ROLES[ME.role];
- list=(list||[]).filter(x=>!isStat(x)&&!isCross(x)&&!x.summaryOnly);   /* แถวสรุป (รวมแถวสรุประดับ 1–2 ของผู้บริหาร) และเรื่องข้ามหน่วยงานไม่ปรากฏในรายการหรือหน้ารายละเอียด */
+ list=(list||[]).filter(x=>!isStat(x)&&!isCross(x)&&!isCrossRead(x)&&!x.summaryOnly);   /* แถวสรุป (รวมแถวสรุประดับ 1–2 ของผู้บริหาร) และเรื่องข้ามหน่วยงานไม่ปรากฏในรายการหรือหน้ารายละเอียด */
  /* รองอธิการบดี (ทั่วไป) เห็นเฉพาะระดับ 3 ขึ้นไปทั้งแดชบอร์ดติดตามและรายงานสถิติ
     บทบาทระดับมหาวิทยาลัยที่เหลือเห็นทุกระดับบนแดชบอร์ด แต่หน้ารายงานจำกัดระดับ 3 ขึ้นไป ดูที่ rpRows() */
  if(r.level3Only)return list.filter(x=>(x.level||x.suggestLevel)>=3);
@@ -1326,7 +1334,8 @@ function dashOrgUnitOptions(scoped){
 }
 
 function pgDash(){
- const scoped=active(overviewRows(INCIDENTS));   /* สถิติไม่นับเรื่องที่ยกเลิก */
+ /* Dashboard ติดตามของคณบดีเป็นของหน่วยงานตนเองเท่านั้น ภาพรวมทั้งมหาวิทยาลัยอยู่ที่ Dashboard รายงานภาพรวม (2.8.22) */
+ const scoped=active(overviewRows(INCIDENTS)).filter(x=>!isOtherUnit(x));   /* สถิติไม่นับเรื่องที่ยกเลิก */
  const years=[...new Set(scoped.map(x=>(x.date||"").slice(0,4)).filter(Boolean))].sort().reverse();
  /* คณบดี / ผอ.กอง: ค่าเริ่มต้นนับเฉพาะเรื่องของหน่วยงานตนเอง (รุ่น 2.8.20)
     เรื่องระดับ 3+ ของหน่วยงานอื่น (crossOnly) แสดงเมื่อเลือกหน่วยงานนั้นจากตัวกรองเท่านั้น
@@ -1589,11 +1598,12 @@ function rpRows(p){
  const r=rpRange(p);
  /* หน้ารายงานภาพรวมแสดงขอบเขต "คณะของท่าน" จึงไม่นับเรื่องข้ามคณะของคณบดี (รุ่น 2.8.20)
     เดิมยอดรวมรวมเรื่องระดับ 3+ ของคณะอื่นเข้ามา ไม่ตรงกับขอบเขตที่แสดงและไม่ตรงกับดัชนี */
- let list=active(overviewRows(INCIDENTS)).filter(x=>!isCross(x));   /* รายงานสถิติไม่นับเรื่องที่ยกเลิก */
+ let list=active(overviewRows(INCIDENTS)).filter(rpScopeOk);   /* รายงานสถิติไม่นับเรื่องที่ยกเลิก · ขอบเขตตามปุ่ม คณะของท่าน / ทั้งมหาวิทยาลัย */
  if(ME&&ROLES[ME.role].reportLevel3)list=list.filter(x=>(x.level||x.suggestLevel)>=3); // รายงานสถิติสำหรับผู้บริหารจำกัดระดับ 3 ขึ้นไป
  return list.filter(x=>{const d=x.date||"";return d&&(!r.from||d>=r.from)&&d<=r.to});
 }
 function setReportPeriod(p){RP_PERIOD=p;document.getElementById("view").innerHTML=pgReport();window.scrollTo({top:0})}
+function setReportScope(v){RP_SCOPE=v==="uni"?"uni":"mine";document.getElementById("view").innerHTML=pgReport()}
 
 /* เปรียบเทียบกับช่วงเวลาก่อนหน้าที่ยาวเท่ากัน เพื่อบอกทิศทางแนวโน้ม */
 function rpPrev(p){
@@ -1603,7 +1613,7 @@ function rpPrev(p){
  /* ต้องคัดชุดข้อมูลด้วยกติกาเดียวกับ rpRows() ทุกข้อ ไม่งั้นเทียบคนละประชากรกัน
     เดิมใช้ visible() เปล่า ๆ ช่วงก่อนหน้าจึงรวมเรื่องที่ยกเลิกและรวมทุกระดับ
     ขณะที่ช่วงปัจจุบันตัดทั้งสองอย่างออก ลูกศร ▲▼ จึงชี้ผิดทางเป็นประจำ */
- let list=active(overviewRows(INCIDENTS)).filter(x=>!isCross(x));
+ let list=active(overviewRows(INCIDENTS)).filter(rpScopeOk);
  if(ME&&ROLES[ME.role].reportLevel3)list=list.filter(x=>(x.level||x.suggestLevel)>=3);
  return list.filter(x=>{const d=x.date||"";return d&&d>=pf.toISOString().slice(0,10)&&d<r.from});
 }
@@ -1642,7 +1652,7 @@ function rpTrendChart(rows,months){return monthlyBarChart(rows,months,"r")}
    คอลัมน์ "ระดับสูงสุด" กำกับไว้เสมอ เพราะคะแนนสะสมไม่มีเพดานและถูกอ่านผิดเป็นระดับได้ง่าย
    เช่น 3 เรื่องระดับ 1–2 รวมได้ 5 คะแนน ทั้งที่ไม่มีเรื่องใดถึงระดับ 5 เลยสักเรื่อง */
 function rpRank(rows){
- const key=ROLES[ME.role].scope==="all"?facultyOf:orgUnitOf,m={};
+ const key=ROLES[ME.role].scope==="all"||(rpUniOk()&&RP_SCOPE==="uni")?facultyOf:orgUnitOf,m={};
  rows.forEach(r=>{const k=key(r);if(!m[k])m[k]={n:0,risk:0,sev:0,baht:0,top:0};
   const L=Math.max(0,Math.min(5,rowLevel(r)));   /* กันข้อมูลนอกช่วง 1–5 ไม่ให้ SEV[L] เป็น undefined */
   m[k].n++;m[k].risk+=riskWeight(r);
@@ -2328,6 +2338,9 @@ function pgReport(){
  let scope=ROLES[ME.role].scope==="all"?"ทุกคณะและทุกหน่วยงาน":(ROLES[ME.role].scope==="faculty"?esc(userFaculty(ME)):(ROLES[ME.role].scope==="orgUnit"?esc(userOrgUnit(ME)):"รายงานของฉัน"));
  /* ผู้บริหารเห็นรายงานสถิติเฉพาะระดับ 3 ขึ้นไป จึงต้องระบุไว้บนปกรายงานให้ตรงกับข้อมูลที่แสดง */
  if(ROLES[ME.role].reportLevel3)scope+=" · เฉพาะระดับ 3 ขึ้นไป";
+ const uni=rpUniOk()&&RP_SCOPE==="uni";
+ if(uni)scope="ทั้งมหาวิทยาลัย · ทุกระดับ";
+ const sev3=uni?rows.filter(x=>rowLevel(x)>=3&&!x.summaryOnly).sort((a,b)=>String(b.date).localeCompare(String(a.date))):[];
 
  return `
  <div class="rp-cover">
@@ -2344,6 +2357,7 @@ function pgReport(){
  </div>
 
  <div class="rp-tools">
+  ${rpUniOk()?`<div class="rp-seg" style="margin-right:8px"><button class="${uni?"":"on"}" onclick="setReportScope('mine')">${esc(userFaculty(ME))||"หน่วยงานของท่าน"}</button><button class="${uni?"on":""}" onclick="setReportScope('uni')">ทั้งมหาวิทยาลัย</button></div>`:""}
   <div class="rp-seg">${Object.keys(RP_PERIODS).map(k=>`<button class="${k===RP_PERIOD?"on":""}" onclick="setReportPeriod('${k}')">${RP_PERIODS[k]}</button>`).join("")}</div>
   <div class="spacer"></div>
   <button class="btn" onclick="exportReportCSV()">ส่งออก CSV</button>
@@ -2367,11 +2381,12 @@ function pgReport(){
  </div>
 
  <div class="section-title">ดัชนีความปลอดภัย · Injury Frequency Rate · Property Damage Frequency Rate · Injury Severity Rate</div>
+ ${uni?`<div class="note" style="margin-bottom:12px;font-size:12.5px">ดัชนีในส่วนนี้คำนวณของ <b>${esc(userFaculty(ME))}</b> (ตัวหารเป็นชั่วโมงทำงานของหน่วยงานตนเอง) · ค่าของทั้งมหาวิทยาลัยและของแต่ละคณะดูได้ที่กราฟเปรียบเทียบด้านล่าง (เส้นสีแดง = ค่ารวมมหาวิทยาลัย)</div>`:""}
  ${afrPanel(idxRows(RP_PERIOD),RP_PERIOD)}
 ${ROLES[ME.role].can.safetyIndex?`
  <div class="section-title">แนวโน้มดัชนีความปลอดภัยรายเดือน</div>
  <div class="card"><div class="card-h"><h3>เปรียบเทียบ IFR · PDFR · ISR ${idxMonths(RP_PERIOD)} เดือนล่าสุด</h3>
-   <span class="hint">ระดับมหาวิทยาลัย</span></div>
+   <span class="hint">${ROLES[ME.role].scope==="all"?"ระดับมหาวิทยาลัย":esc(userFaculty(ME))}</span></div>
   <div class="card-b">${idxTrendChart(idxRowsMonths(idxMonths(RP_PERIOD)),idxMonths(RP_PERIOD),"ix")}
    <div class="note" style="margin-top:12px;font-size:12.3px"><b>วิธีอ่านกราฟ</b> เส้นทึบสีน้ำตาลคือ <b>IFR</b> บอกว่าเกิดการบาดเจ็บ<b>บ่อยแค่ไหน</b> เส้นประสีน้ำเงินคือ <b>PDFR</b> บอกว่าเกิดความเสียหายทางทรัพย์สิน<b>บ่อยแค่ไหน</b>
     ทั้งสองเส้นเป็นจำนวนครั้งต่อชั่วโมงการทำงาน 1,000,000 ชั่วโมงเหมือนกัน จึงใช้<b>แกนซ้ายร่วมกันและเทียบกันได้โดยตรง</b>
@@ -2394,6 +2409,11 @@ ${canCompareFaculties()?`
    <div class="card-b">${levelBars(rows)}</div></div>
  </div>
 
+${uni?`
+ <div class="section-title">อุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย · ${sev3.length} เรื่อง</div>
+ <div class="note" style="margin-bottom:10px;font-size:12.5px">กดที่แถวเพื่อเปิดอ่านรายละเอียด เรื่องของหน่วยงานอื่นอ่านได้อย่างเดียว · ระดับ 1–2 ของหน่วยงานอื่นแสดงเฉพาะในสถิติ</div>
+ <div class="card"><div class="tbl-wrap">${table(sev3)}</div></div>
+`:""}
  <div class="section-title">เมทริกซ์ความรุนแรงตามสองเกณฑ์ตามตารางความรุนแรง</div>
  <div class="card"><div class="card-b">${rpMatrix(rows)}</div></div>
 
@@ -2528,7 +2548,9 @@ function pgDetail(){
  const rec0=INCIDENTS.find(x=>x.id===CURRENT);
  if(ROLES[ME.role].execRead&&rec0&&rec0.summaryOnly&&!ownReport(rec0))return `<div class="empty"><b>เรื่องระดับ 1–2 แสดงเฉพาะในสถิติ</b>${esc(ROLES[ME.role].name)} เปิดอ่านรายละเอียดได้เฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป</div>`;
  if(ROLES[ME.role].oversight&&!ROLES[ME.role].execRead&&!ownReport(rec0))return `<div class="empty"><b>บทบาทนี้ใช้ข้อมูลเพื่อการกำกับติดตาม</b>${ROLES[ME.role].name} เข้าถึงแดชบอร์ดติดตามและรายงานสถิติ การดูรายละเอียดรายเรื่องเป็นสิทธิ์ของผู้ปฏิบัติในคณะ</div>`;
- const r=visible(INCIDENTS).find(x=>x.id===CURRENT); // บังคับขอบเขตสิทธิ์ที่หน้ารายละเอียดด้วย ไม่ใช่แค่ซ่อนลิงก์
+ const r=visible(INCIDENTS).find(x=>x.id===CURRENT)   // บังคับขอบเขตสิทธิ์ที่หน้ารายละเอียดด้วย ไม่ใช่แค่ซ่อนลิงก์
+  ||(ROLES[ME.role].crossLevel3?INCIDENTS.find(x=>x.id===CURRENT&&isCrossRead(x)):null);   /* ระดับ 3+ ของหน่วยงานอื่น · อ่านอย่างเดียว */
+ if(rec0&&rec0.summaryOnly&&isOtherUnit(rec0))return `<div class="empty"><b>เรื่องระดับ 1–2 ของหน่วยงานอื่นแสดงเฉพาะในสถิติ</b>เปิดอ่านรายละเอียดได้เฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป</div>`;
  if(!r)return `<div class="empty"><b>ไม่พบรายงาน</b>เรื่องนี้อาจอยู่นอกขอบเขตสิทธิ์ของท่าน</div>`;
  if(!canOpen(r))return `<button class="btn btn-sm" onclick="go('list')" style="margin-bottom:16px">← กลับรายการ</button>
   <div class="card"><div class="card-b"><div class="lock">🔒 <span>เหตุการณ์นี้จัดเป็นข้อมูลอ่อนไหว เปิดอ่านรายละเอียดได้เฉพาะหัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย รองคณบดี (กำกับดูแล) คณบดี / ผู้อำนวยการกอง ของหน่วยงานนั้น และผู้บริหารมหาวิทยาลัย ระบบยังนับรวมในสถิติภาพรวมโดยไม่แสดงเนื้อหา</span></div></div></div>`;
@@ -2536,7 +2558,8 @@ function pgDetail(){
  const acts=[];
  /* เรื่องที่ยกเลิกแล้วหยุดนิ่ง ไม่มีปุ่มดำเนินการใด ๆ เหลือ ตรงกับที่เซิร์ฟเวอร์ปฏิเสธ */
  const cancelled=r.status===CANCELLED;
- if(!cancelled){
+ const readOnly=isCrossRead(r);   /* เรื่องของหน่วยงานอื่น: ไม่มีปุ่มดำเนินการ เซิร์ฟเวอร์ก็ปฏิเสธเช่นกัน */
+ if(!cancelled&&!readOnly){
  if(c.confirm&&r.status==="submitted")acts.push(`<button class="btn btn-p" onclick="openConfirmFact('${r.id}')">ยืนยันข้อเท็จจริง</button>`);
  if(c.assess&&r.status==="confirmed")acts.push(`<button class="btn btn-p" onclick="doAssess('${r.id}')">ตรวจสอบและประเมินระดับความรุนแรง</button>`);
  /* แก้ผลการประเมิน (ระดับ มูลค่าความเสียหาย วันหยุดงาน) ได้ทุกขั้นหลังประเมินแล้วจนก่อนปิดเรื่อง */
@@ -2591,8 +2614,9 @@ function pgDetail(){
  const sensitive=isSensitive(r.cats);
  const noSafety=(r.level||r.suggestLevel)>=3&&!hasSafetyCommittee(facultyOf(r));
  return `
- <button class="btn btn-sm" onclick="go('list')" style="margin-bottom:16px">← กลับรายการ</button>
- ${noSafety?`<div class="note" style="margin-bottom:16px">คณะนี้ยังไม่มีผู้ใช้ในบทบาท คปอ. ในระบบ การร่วมสอบสวนและพิจารณามาตรการสำหรับเหตุระดับ 3 ขึ้นไป จึงเป็นหน้าที่ของหัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมายและรองคณบดี (กำกับดูแล) ตามตารางระดับความรุนแรง</div>`:""}
+ <button class="btn btn-sm" onclick="go('${readOnly?"report":"list"}')" style="margin-bottom:16px">← ${readOnly?"กลับ Dashboard รายงานภาพรวม":"กลับรายการ"}</button>
+ ${readOnly?`<div class="note" style="margin-bottom:16px"><b>เรื่องของ${esc(facultyOf(r))}</b> · ท่านอ่านรายละเอียดอุบัติการณ์ระดับ 3 ขึ้นไปของหน่วยงานอื่นได้อย่างเดียว การดำเนินการเป็นหน้าที่ของหน่วยงานเจ้าของเรื่อง</div>`:""}
+ ${noSafety&&!readOnly?`<div class="note" style="margin-bottom:16px">คณะนี้ยังไม่มีผู้ใช้ในบทบาท คปอ. ในระบบ การร่วมสอบสวนและพิจารณามาตรการสำหรับเหตุระดับ 3 ขึ้นไป จึงเป็นหน้าที่ของหัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมายและรองคณบดี (กำกับดูแล) ตามตารางระดับความรุนแรง</div>`:""}
  ${cancelled?`<div class="note crit" style="margin-bottom:16px"><b>รายงานนี้ถูกยกเลิกแล้ว</b> เมื่อ ${stamp(r.cancelledAt)||"—"}${esc(r.cancelNote)?` · เหตุผล: ${esc(r.cancelNote)}`:""}
   <br>ระบบเก็บข้อมูลไว้เพื่อการตรวจสอบย้อนหลัง แต่ไม่นับรวมในสถิติ กราฟ และรายงานสถิติทุกหน้า</div>`:""}
  ${sensitive?`<div class="note crit" style="margin-bottom:16px">เหตุการณ์นี้จัดเป็นข้อมูลอ่อนไหว จำกัดการเข้าถึงเฉพาะผู้มีหน้าที่โดยตรง ห้ามเผยแพร่รายละเอียดหรือภาพประกอบ และให้ประสานงานแนะแนวและบริการให้คำปรึกษาของมหาวิทยาลัยควบคู่กับการสอบสวน</div>`:""}

@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.21
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.22
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -190,6 +190,19 @@ function unitHeadcount_() {
     ok_(!mine.summaryOnly, 'ผู้รายงานเห็นเรื่องของตนเองครบ');
     var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].execRead; }).sort();
     return eq_(holders, ['assistant_president','president','vice_president','vice_president_sup'], 'บทบาทที่มี execRead');
+  });
+
+  /* รุ่น 2.8.22 — คณบดีเห็นภาพรวมทั้งมหาวิทยาลัยทุกระดับ อ่านระดับ 3+ ของหน่วยงานอื่นได้อย่างเดียว */
+  t_('คณบดี: ภาพรวมทั้งมหาวิทยาลัยและอ่านระดับ 3+ ของหน่วยงานอื่น', function () {
+    var dean = { registered:true, role:'dean', email:'d@nu.ac.th', faculty:'คณะแพทยศาสตร์' };
+    var mk = function (id, fac, lv) { return { id:id, faculty:fac, level:lv, suggestLevel:lv, status:'assessed', title:'t' + id, detail:'d', cats:[], capa:[], reporterEmail:'r@nu.ac.th' }; };
+    var list = [mk('A1','คณะแพทยศาสตร์',1), mk('A4','คณะแพทยศาสตร์',4), mk('B1','คณะวิศวกรรมศาสตร์',1), mk('B3','คณะวิศวกรรมศาสตร์',3)];
+    var by = {}; scoped_(dean, list).forEach(function (x) { by[x.id] = x; });
+    ok_(by.A1 && !by.A1.summaryOnly && !by.A1.crossRead && by.A1.detail === 'd', 'หน่วยงานตนเองระดับ 1 เห็นครบ');
+    ok_(by.A4 && !by.A4.crossRead, 'หน่วยงานตนเองระดับ 4 ดำเนินการได้');
+    ok_(by.B1 && by.B1.summaryOnly && by.B1.detail === '', 'หน่วยงานอื่นระดับ 1–2 เป็นแถวสรุปเท่านั้น');
+    ok_(by.B3 && by.B3.crossRead && by.B3.detail === 'd' && by.B3.reporterEmail === '', 'หน่วยงานอื่นระดับ 3 อ่านได้ ไม่มีอีเมลผู้รายงาน');
+    return 'ผ่าน';
   });
 
   /* รุ่น 2.8.21 — รองอธิการบดี (ทั่วไป) และผู้ช่วยอธิการบดี ใช้เฉพาะ Dashboard รายงานภาพรวม
