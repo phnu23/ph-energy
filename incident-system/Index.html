@@ -834,7 +834,7 @@ function normalizeIncident(r){
  out.parts=arr(out.parts);
  out.files=arr(out.files);
  out.involved=arr(out.involved).filter(Boolean);
- out.causes=arr(out.causes);
+ out.causes=migrateCauses(arr(out.causes));   /* ชื่อสาเหตุรุ่นเก่าแปลงเป็น 4 หมวดปัจจุบัน (2.8.23) */
  out.capa=Array.isArray(out.capa)?out.capa:[];
  out.log=Array.isArray(out.log)?out.log:[];
  /* ประวัติการติดตามมาตรการ เพิ่มในรุ่น 2.7.1 — เรื่องเก่าไม่มีคอลัมน์นี้ ต้องอ่านเป็นรายการว่าง
@@ -1013,6 +1013,19 @@ const migrateCats=list=>Array.from(new Set((list||[]).map(c=>CAT_LEGACY[c]||c)))
 const BODYPARTS=["ศีรษะ/ลำคอ/ใบหน้า","ตา","ลำตัว","หลัง/ไหล่","แขน","มือ/นิ้วมือ","ขา","เท้า/นิ้วเท้า","บาดเจ็บหลายส่วน","อื่น ๆ"];
 const ACTIVITIES=["การทำงานภายในอาคาร","การทำงานภายนอกอาคาร","การเรียนการสอน","วิจัย (Research)","อื่น ๆ"];
 const CAUSES=["การกระทำที่ไม่ปลอดภัย","อุปกรณ์เครื่องมือชำรุด/ต่ำกว่ามาตรฐาน","วิธีการทำงานไม่ปลอดภัย/ไม่มีขั้นตอนการทำงาน","สภาพแวดล้อมการทำงานต่ำกว่ามาตรฐาน/ไม่ปลอดภัย","อื่น ๆ"];
+/* รายงานที่บันทึกจากรุ่นก่อน (หรือนำเข้าจาก Excel) ใช้ชื่อสาเหตุคนละแบบ เช่น "สภาพการทำงานที่ไม่ปลอดภัย"
+   "การปฏิบัติงานที่ไม่เป็นไปตามขั้นตอนหรือมาตรฐานที่กำหนด" กราฟจึงแตกเป็นหลายแท่ง (รุ่น 2.8.23)
+   แปลงเป็น 4 หมวดปัจจุบันตอนโหลดข้อมูล ข้อมูลในชีตไม่ถูกแก้ · ลำดับการตรวจสำคัญ: อุปกรณ์ → วิธีการ/ขั้นตอน → สภาพแวดล้อม → การกระทำ */
+function canonCause(c){
+ c=String(c||"").trim(); if(!c)return "";
+ if(CAUSES.indexOf(c)>=0)return c;
+ if(/อุปกรณ์|เครื่องมือ|เครื่องจักร/.test(c))return CAUSES[1];
+ if(/ขั้นตอน|วิธีการ|วิธีทำงาน|มาตรฐานที่กำหนด|ไม่เป็นไปตาม/.test(c))return CAUSES[2];
+ if(/สภาพ|แวดล้อม/.test(c))return CAUSES[3];
+ if(/การกระทำ|พฤติกรรม|ประมาท/.test(c))return CAUSES[0];
+ return CAUSES[4];
+}
+function migrateCauses(list){return Array.from(new Set((list||[]).map(canonCause).filter(Boolean)))}
 
 const STATUS={
  submitted:{label:"รอหัวหน้างานยืนยันข้อเท็จจริง",cls:"st-new",step:1},
@@ -1551,10 +1564,11 @@ function levelBars(rows){
    <span class="n">${n}</span></div>`}).join("");
 }
 function causeBars(rows){
- const m={};rows.forEach(r=>r.causes.forEach(c=>m[c]=(m[c]||0)+1));
- const arr=Object.entries(m).sort((a,b)=>b[1]-a[1]);
- if(!arr.length)return `<div class="empty">ยังไม่มีผลการวิเคราะห์สาเหตุ</div>`;
- const max=arr[0][1];
+ /* แสดง 4 หมวดหลักครบเสมอ (แม้เป็น 0) ส่วน "อื่น ๆ" แสดงเมื่อมีข้อมูล · เรียงตามจำนวน */
+ const m={};rows.forEach(r=>migrateCauses(r.causes).forEach(c=>m[c]=(m[c]||0)+1));
+ if(!Object.keys(m).length)return `<div class="empty">ยังไม่มีผลการวิเคราะห์สาเหตุ</div>`;
+ const arr=CAUSES.filter(c=>c!==CAUSES[4]||m[c]).map(c=>[c,m[c]||0]).sort((a,b)=>b[1]-a[1]);
+ const max=Math.max(1,arr[0][1]);
  return arr.map(([k,v])=>`<div class="bar-row"><span style="font-size:12.5px">${esc(k)}</span>
   <div class="bar-track"><div class="bar-fill" style="width:${(v/max*100).toFixed(0)}%;background:var(--ink-2)"></div></div>
   <span class="n">${v}</span></div>`).join("");
