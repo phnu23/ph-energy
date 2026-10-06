@@ -1466,15 +1466,21 @@ function thMonthLabel(ym){
 }
 /* คีย์เดือนย้อนหลัง n เดือนถึงเดือนปัจจุบัน รูปแบบ yyyy-MM
    ใช้ร่วมกันทุกกราฟรายเดือน เพื่อให้แกนนอนตรงกันเสมอ */
-function monthKeys(months){
+function monthKeys(months,end){
+ /* end = "YYYY-MM" เดือนสุดท้ายของกราฟ (ไม่ระบุ = เดือนปัจจุบัน) ใช้กับตัวกรองรายปีของศูนย์รวมกองอาคารสถานที่ (2.8.24) */
+ if(end&&/^\d{4}-\d{2}$/.test(end)){
+  const out=[];let y=+end.slice(0,4),m=+end.slice(5,7);
+  for(let i=0;i<months;i++){out.unshift(y+"-"+String(m).padStart(2,"0"));if(--m<1){m=12;y--;}}
+  return out;
+ }
  const ms=[],now=new Date();
  for(let i=months-1;i>=0;i--){const d=new Date(now);d.setMonth(d.getMonth()-i);ms.push(d.toISOString().slice(0,7))}
  return ms;
 }
 const inMonth=(r,m)=>String(r.date||"").slice(0,7)===m;
 
-function monthlyBarChart(rows,months,uid){
- const ms=monthKeys(months);
+function monthlyBarChart(rows,months,uid,end){
+ const ms=monthKeys(months,end);
  const all=ms.map(m=>rows.filter(r=>inMonth(r,m)).length);
  const sev=ms.map(m=>rows.filter(r=>inMonth(r,m)&&(r.level||r.suggestLevel)>=3).length);
  const W=620,H=252,pl=34,pr=14,pt=26,pb=36;
@@ -3479,10 +3485,25 @@ function renderReview(){
 }
 /* ========== 13. ศูนย์รวมข้อมูล ========== */
 function pgCentral(){
- const rows=active(visible(INCIDENTS)); // visible() รู้กติกาขอบเขตอยู่แล้ว รวมถึงผู้บริหารที่เห็นเฉพาะระดับ 3 ขึ้นไป
+ const base=active(visible(INCIDENTS)); // visible() รู้กติกาขอบเขตอยู่แล้ว รวมถึงผู้บริหารที่เห็นเฉพาะระดับ 3 ขึ้นไป
+ /* ตัวกรอง รายปี / รายเดือน / รายคณะ (รุ่น 2.8.24) — ปีเป็น ค.ศ. ตามข้อมูล แสดงเป็น พ.ศ. */
+ const allScope=ROLES[ME.role].scope==="all";
+ if(!allScope)CT_FAC="";
+ const years=[...new Set(base.map(x=>String(x.date||"").slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort().reverse();
+ if(CT_YEAR&&years.indexOf(CT_YEAR)<0)years.unshift(CT_YEAR);
+ if(!CT_YEAR)CT_MONTH="";
+ const facRows=base.filter(x=>!CT_FAC||facultyOf(x)===CT_FAC);
+ const yearRows=facRows.filter(x=>!CT_YEAR||String(x.date||"").slice(0,4)===CT_YEAR);
+ const rows=yearRows.filter(x=>!CT_MONTH||String(x.date||"").slice(5,7)===CT_MONTH);
+ const thisYM=localToday().slice(0,7);
+ const spcEnd=CT_YEAR?(CT_YEAR===thisYM.slice(0,4)?thisYM:CT_YEAR+"-12"):"";
+ const periodText=CT_YEAR?(CT_MONTH?"เดือน "+TH_MONTHS[+CT_MONTH-1]+" "+(+CT_YEAR+543):"ปี พ.ศ. "+(+CT_YEAR+543)):"สะสมทั้งหมดในระบบ";
+ const scopeText=CT_FAC?esc(CT_FAC):(allScope?"ทุกหน่วยงาน":"ในขอบเขตของท่าน");
+ const unitKey=CT_FAC?(x=>orgUnitOf(x)||"ไม่ระบุหน่วยงานย่อย"):(x=>x.unit);
+ const facOpts=ORG.map(g=>`<optgroup label="${esc(g.name)}">${g.units.map(u=>`<option value="${esc(u)}"${u===CT_FAC?" selected":""}>${esc(u)}</option>`).join("")}</optgroup>`).join("");
  const byGroup=ORG.map(g=>({name:g.name,n:rows.filter(r=>unitGid(r.unit)===g.id).length}));
  const maxG=Math.max(1,...byGroup.map(x=>x.n));
- const byUnit={};rows.forEach(r=>byUnit[r.unit]=(byUnit[r.unit]||0)+1);
+ const byUnit={};rows.forEach(r=>{const k=unitKey(r);byUnit[k]=(byUnit[k]||0)+1});
  const topUnits=Object.entries(byUnit).sort((a,b)=>b[1]-a[1]).slice(0,8);
  const maxU=topUnits.length?topUnits[0][1]:1;
  const lateUni=rows.filter(r=>(r.level||0)>=3&&!r.uniReportAt&&r.status!=="closed");
@@ -3490,27 +3511,38 @@ function pgCentral(){
  const nearPct=rows.length?Math.round(rows.filter(r=>r.kind==="near").length/rows.length*100):0;
  return `
  <div class="note warn" style="margin-bottom:20px">กองอาคารสถานที่ทำหน้าที่ศูนย์รวมข้อมูลอุบัติการณ์ของทุกหน่วยงาน เพื่อวิเคราะห์แนวโน้ม จัดลำดับความเสี่ยงเชิงพื้นที่ และวางแผนงบประมาณปรับปรุงกายภาพ โดยไม่กระทบต่อขอบเขตการบริหารจัดการภายในของแต่ละคณะ</div>
+ <div class="card" style="margin-bottom:16px"><div class="card-b" style="padding:13px 16px">
+  <div class="filters" style="margin:0">
+   ${allScope?`<div class="fld wide"><label class="f">คณะ/หน่วยงาน <span>(${ALL_UNITS.length} หน่วยงาน)</span></label>
+    <select onchange="setCentralFilter('fac',this.value)"><option value="">ทุกคณะและทุกหน่วยงาน</option>${facOpts}</select></div>`:""}
+   <div class="fld"><label class="f">ปี พ.ศ.</label><select onchange="setCentralFilter('year',this.value)">
+    <option value="">ทุกปี</option>${years.map(y=>`<option value="${y}"${y===CT_YEAR?" selected":""}>${+y+543}</option>`).join("")}</select></div>
+   <div class="fld"><label class="f">เดือน</label><select onchange="setCentralFilter('month',this.value)"${CT_YEAR?"":" disabled title=\"เลือกปีก่อน\""}>
+    <option value="">ทั้งปี</option>${TH_MONTHS.map((m,i)=>{const v=String(i+1).padStart(2,"0");return `<option value="${v}"${v===CT_MONTH?" selected":""}>${m}</option>`}).join("")}</select></div>
+   <div class="dash-tools"><button class="btn" onclick="setCentralFilter('clear')">ล้างตัวกรอง</button></div>
+  </div></div></div>
  <div class="grid g4">
-  ${kpi(ROLES[ME.role].scope==="all"?"อุบัติการณ์รวมทุกหน่วยงาน":"อุบัติการณ์ในขอบเขตของท่าน",rows.length,"สะสมทั้งหมดในระบบ","")}
-  ${kpi("หน่วยงานที่มีรายงาน",Object.keys(byUnit).length,"จาก "+ALL_UNITS.length+" หน่วยงาน","")}
+  ${kpi(CT_FAC?"อุบัติการณ์ของหน่วยงานที่เลือก":(allScope?"อุบัติการณ์รวมทุกหน่วยงาน":"อุบัติการณ์ในขอบเขตของท่าน"),rows.length,periodText,"")}
+  ${CT_FAC?kpi("หน่วยงานย่อยที่มีรายงาน",Object.keys(byUnit).length,esc(CT_FAC),""):kpi("หน่วยงานที่มีรายงาน",Object.keys(byUnit).length,"จาก "+ALL_UNITS.length+" หน่วยงาน","")}
   ${kpi("มูลค่าความเสียหายรวม",fmtB(totalBaht),"บาท (ประมาณการจากรายงาน)","k-warn")}
   ${kpi("สัดส่วนเกือบเกิดอุบัติเหตุ",nearPct+"%","ยิ่งสูงยิ่งสะท้อนวัฒนธรรมความปลอดภัย","k-ok")}
  </div>
  <div class="section-title">เปรียบเทียบตามกลุ่มหน่วยงาน</div>
  <div class="grid g2">
-  <div class="card"><div class="card-h"><h3>จำนวนตามกลุ่ม</h3></div><div class="card-b">
+  <div class="card"><div class="card-h"><h3>จำนวนตามกลุ่ม</h3><span class="hint">${periodText}</span></div><div class="card-b">
    ${byGroup.map(g=>`<div class="bar-row"><span style="font-size:12.5px">${g.name}</span>
     <div class="bar-track"><div class="bar-fill" style="width:${(g.n/maxG*100).toFixed(0)}%;background:var(--saed)"></div></div>
     <span class="n">${g.n}</span></div>`).join("")}
    <div class="legend"><span>ตัวเลขคือจำนวนที่รายงานเข้าระบบ ไม่ใช่จำนวนความเสี่ยงจริง หน่วยงานที่รายงานมากอาจสะท้อนวัฒนธรรมความปลอดภัยที่ดีกว่า</span></div></div></div>
-  <div class="card"><div class="card-h"><h3>หน่วยงานที่รายงานสูงสุด</h3></div><div class="card-b">
+  <div class="card"><div class="card-h"><h3>${CT_FAC?"หน่วยงานย่อยที่รายงานสูงสุด":"หน่วยงานที่รายงานสูงสุด"}</h3><span class="hint">${periodText}</span></div><div class="card-b">
+   ${topUnits.length?"":`<div class="empty">ไม่มีรายงานในช่วงที่เลือก</div>`}
    ${topUnits.map(([u,n])=>`<div class="bar-row"><span style="font-size:12.5px">${esc(u)}</span>
     <div class="bar-track"><div class="bar-fill" style="width:${(n/maxU*100).toFixed(0)}%;background:var(--ink-2)"></div></div>
     <span class="n">${n}</span></div>`).join("")}</div></div>
  </div>
- <div class="section-title">แนวโน้มเชิงสถิติทั้งมหาวิทยาลัย</div>
- <div class="card"><div class="card-h"><h3>แผนภูมิควบคุมจำนวนอุบัติการณ์รายเดือน</h3>
-  <span class="hint">จุดที่หลุดขีดควบคุมคือสัญญาณให้ทบทวนสาเหตุร่วม</span></div><div class="card-b">${spcChart(rows)}</div></div>
+ <div class="section-title">แนวโน้มเชิงสถิติ · ${scopeText}</div>
+ <div class="card"><div class="card-h"><h3>แผนภูมิควบคุมจำนวนอุบัติการณ์รายเดือน${CT_YEAR?" · ปี พ.ศ. "+(+CT_YEAR+543):" · 12 เดือนล่าสุด"}</h3>
+  <span class="hint">จุดที่หลุดขีดควบคุมคือสัญญาณให้ทบทวนสาเหตุร่วม${CT_MONTH?" · กราฟแสดงทั้งปีเพื่อดูแนวโน้ม":""}</span></div><div class="card-b">${monthlyBarChart(yearRows,12,"ct",spcEnd)}</div></div>
  <div class="section-title">สาเหตุและจุดเกิดเหตุที่ต้องเร่งแก้ไข</div>
  <div class="grid g2">
   <div class="card"><div class="card-h"><h3>สาเหตุการเกิด</h3></div><div class="card-b">${causeBars(rows)}</div></div>
@@ -3518,6 +3550,12 @@ function pgCentral(){
  </div>
  <div class="section-title">ค้างรายงานมหาวิทยาลัย (ระดับ 3 ขึ้นไป)</div>
  <div class="card"><div class="tbl-wrap">${table(lateUni)}</div></div>`;
+}
+
+let CT_FAC="",CT_YEAR="",CT_MONTH="";
+function setCentralFilter(k,v){
+ if(k==="fac")CT_FAC=v; else if(k==="year"){CT_YEAR=v;if(!v)CT_MONTH="";} else if(k==="month")CT_MONTH=v; else {CT_FAC="";CT_YEAR="";CT_MONTH="";}
+ const el=document.getElementById("view"); if(el&&PAGE==="central")el.innerHTML=pgCentral();
 }
 
 /* ========== 14. ค้นหาย้อนหลัง ========== */
