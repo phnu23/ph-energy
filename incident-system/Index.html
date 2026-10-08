@@ -1118,6 +1118,10 @@ let INCIDENTS=[];
 
 /* ========== 5. State + ขอบเขตสิทธิ์ ========== */
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
+/* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
+   แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
+const CLIENT_VERSION="2.8.28";
+let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
    จุดที่เรียก audit(...) ในไฟล์นี้จึงไม่มีผลใด ๆ นอกจากเป็นเอกสารประกอบว่าจุดนั้นเป็นการกระทำที่มีร่องรอยตรวจสอบ */
@@ -1243,6 +1247,7 @@ function buildNav(){
  document.getElementById("nav").innerHTML=items.map(i=>i.k?`<div class="nav-label">${i.k}</div>`
   :`<a data-p="${i.p}" onclick="go('${i.p}')">${i.l}${i.n?`<span class="cnt">${i.n}</span>`:""}</a>`).join("");
  document.getElementById("railUser").innerHTML=`<b>${esc(ME.name)}</b><small>${esc(ME.pos)}</small><small>${esc(userFaculty(ME))}</small>${userOrgUnit(ME)?`<small>${esc(userOrgUnit(ME))}</small>`:""}
+  <small style="opacity:.6;margin-top:4px">รุ่น ${CLIENT_VERSION}${SERVER_VERSION&&SERVER_VERSION!==CLIENT_VERSION?` · <span style="color:#F5A25D">เซิร์ฟเวอร์ ${esc(SERVER_VERSION)}</span>`:""}</small>
   <button onclick="logout()">ออกจากระบบ</button>`;
 }
 /* หน้าที่เข้าถึงข้อมูลรายเรื่อง บทบาทกำกับดูแลเข้าไม่ได้
@@ -4091,6 +4096,7 @@ function boot(){
     ME = res.user;
     if (res.syncedAt) SYNC_MARK = res.syncedAt;
     ROLE_COVERAGE = res.roleCoverage || [];
+    SERVER_VERSION = String(res.appVersion || '');
     INCIDENTS = normalizeIncidents(res.incidents || []);
     LAST_SYNC = new Date();
     document.getElementById('login').style.display = 'none';
@@ -4105,6 +4111,8 @@ function boot(){
     }
     syncState(false);
     startPolling();
+    if (SERVER_VERSION && SERVER_VERSION !== CLIENT_VERSION && ME && (ROLES[ME.role].can.admin))
+      toast('Index.html รุ่น ' + CLIENT_VERSION + ' ไม่ตรงกับ Code.gs รุ่น ' + SERVER_VERSION + ' — วางไฟล์ให้ครบทุกไฟล์ แล้ว Deploy → New version');
   }, function(e){
     /* บัญชีที่ยังไม่ได้รับอนุมัติหรือถูกระงับ ต้องเห็นสาเหตุ ไม่ใช่หน้าจอค้างที่ "กำลังตรวจสอบสิทธิ์" */
     if (e && e.code === 'AUTH_REQUIRED' && HAS_GAS && !EXT_ID_TOKEN) {

@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.27
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.28
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -1057,6 +1057,16 @@ function runInstallCheck() {
     var have = need.filter(function (r) { return roles[r]; });
     return ok_(have.length > 0, 'ไม่มีผู้ถือบทบาท ' + need.join(' / ') + ' เลย เหตุรุนแรงจะไม่มีใครได้รับแจ้ง') +
            ' (' + have.join(', ') + ')';
+  });
+
+  /* รุ่น 2.8.28 — วางไฟล์ไม่ครบเป็นสาเหตุอันดับแรกที่หน้าจอไม่เปลี่ยนหลัง Deploy */
+  t_('Index.html รุ่นเดียวกับ Code.gs', function () {
+    if (typeof HtmlService === 'undefined' || !HtmlService.createHtmlOutputFromFile) return 'ข้าม (ไม่มี HtmlService)';
+    var html = HtmlService.createHtmlOutputFromFile('Index').getContent();
+    var m = /const CLIENT_VERSION="([^"]+)"/.exec(html);
+    ok_(m, 'ไม่พบเลขรุ่นใน Index.html — ไฟล์ Index.html เป็นรุ่นก่อน 2.8.28');
+    ok_(m[1] === APP_VERSION, 'Index.html รุ่น ' + m[1] + ' แต่ Code.gs รุ่น ' + APP_VERSION + ' — วาง Index.html ใหม่');
+    return 'รุ่น ' + APP_VERSION;
   });
 
   /* ทะเบียนที่ยังว่างไม่ใช่ระบบพัง แต่ทำให้ IFR/PDFR/ISR แสดงเป็น "—" ทั้งหน้ารายงาน
