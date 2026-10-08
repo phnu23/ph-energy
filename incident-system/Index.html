@@ -382,6 +382,9 @@ textarea{min-height:92px;resize:vertical}
 
 .rp-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:18px}
 .rp-tools .spacer{flex:1}
+.rp-pick{display:inline-flex;gap:6px;align-items:center}
+.rp-pick select{width:auto;min-width:120px;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 10px;font:inherit;font-size:13px;background:var(--card,#fff);color:var(--ink)}
+.rp-seg{flex-wrap:wrap}
 .rp-seg{display:inline-flex;background:var(--line-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .rp-seg button{border:0;background:transparent;padding:8px 14px;border-radius:8px;cursor:pointer;
  font-size:13px;font-weight:600;color:var(--steel);transition:.16s}
@@ -1605,14 +1608,60 @@ function paretoBars(rows,key,limit){
 
 /* ========== 8.5 รายงานสถิติอุบัติการณ์ ========== */
 let RP_PERIOD="12m";
-const RP_PERIODS={"all":"ตั้งแต่เริ่มระบบ","12m":"12 เดือนล่าสุด","ytd":"ปีปัจจุบัน","q":"ไตรมาสล่าสุด"};
+const RP_PERIODS={"all":"ตั้งแต่เริ่มระบบ","12m":"12 เดือนล่าสุด","ytd":"ปีปัจจุบัน","q":"ไตรมาสล่าสุด","month":"รายเดือน","year":"รายปี"};
+/* รายเดือน / รายปี (รุ่น 2.8.27) — เลือกเดือนหรือปีที่ต้องการได้ ไม่จำกัดเฉพาะช่วงล่าสุด
+   RP_YM = "YYYY-MM" · RP_Y = "YYYY" (ค.ศ. ตามข้อมูล แสดงเป็น พ.ศ.) ค่าเริ่มต้นคือเดือน/ปีปัจจุบัน */
+let RP_YM="",RP_Y="";
+function rpYM(){return /^\d{4}-\d{2}$/.test(RP_YM)?RP_YM:localToday().slice(0,7)}
+function rpY(){return /^\d{4}$/.test(RP_Y)?RP_Y:localToday().slice(0,4)}
+function lastDay(ym){const y=+ym.slice(0,4),m=+ym.slice(5,7);return ym+"-"+String(new Date(y,m,0).getDate()).padStart(2,"0")}
+/* เดือนสุดท้ายของกราฟแนวโน้ม: รายเดือน = เดือนที่เลือก · รายปี = ธ.ค. ของปีนั้น (ปีปัจจุบัน = เดือนนี้) · อื่น ๆ = เดือนนี้ */
+function rpEnd(p){
+ const cur=localToday().slice(0,7);
+ if(p==="month")return rpYM()>cur?cur:rpYM();
+ if(p==="year")return rpY()===cur.slice(0,4)?cur:(rpY()+"-12");
+ return "";
+}
+/* จำนวนเดือนของช่วงที่เลือก — ใช้เป็นตัวหารชั่วโมงการทำงานและช่วงเปรียบเทียบก่อนหน้า */
+function rpSpanMonths(p){
+ const now=new Date();
+ if(p==="q")return 3;
+ if(p==="ytd")return now.getMonth()+1;
+ if(p==="month")return 1;
+ if(p==="year")return rpY()===String(now.getFullYear())?now.getMonth()+1:12;
+ return 12;
+}
+function rpLabel(p){
+ if(p==="month"){const ym=rpYM();return "เดือน "+TH_MONTHS[+ym.slice(5,7)-1]+" "+(+ym.slice(0,4)+543);}
+ if(p==="year")return "ปี พ.ศ. "+(+rpY()+543);
+ return RP_PERIODS[p]||"";
+}
+function rpYears(){
+ const ys=new Set([localToday().slice(0,4)]);
+ (INCIDENTS||[]).forEach(x=>{const y=String(x.date||"").slice(0,4);if(/^\d{4}$/.test(y))ys.add(y)});
+ return [...ys].sort().reverse();
+}
+function setReportYM(k,v){
+ if(k==="year"){RP_Y=v;const m=rpYM().slice(5,7);RP_YM=v+"-"+m;}
+ else if(k==="month")RP_YM=rpYM().slice(0,4)+"-"+v;
+ else if(k==="ymYear")RP_YM=v+"-"+rpYM().slice(5,7);
+ document.getElementById("view").innerHTML=pgReport();
+}
 
 function rpRange(p){
  const now=new Date(), to=localToday();
  if(p==="all")return{from:"",to:to};
+ if(p==="month"){const ym=rpYM(),e=lastDay(ym);return{from:ym+"-01",to:e<to?e:to};}
+ if(p==="year"){const y=rpY(),e=y+"-12-31";return{from:y+"-01-01",to:e<to?e:to};}
  if(p==="ytd")return{from:now.getFullYear()+"-01-01",to:to};
  const d=new Date(now); d.setMonth(d.getMonth()-(p==="q"?3:12));
  return{from:d.toISOString().slice(0,10),to:to};
+}
+/* ชุดข้อมูลเดียวกับ rpRows() แต่กำหนดช่วงวันเอง (กราฟแนวโน้มของรายเดือน) */
+function rpRowsBetween(from,to){
+ let list=active(overviewRows(INCIDENTS)).filter(rpScopeOk);
+ if(ME&&ROLES[ME.role].reportLevel3)list=list.filter(x=>(x.level||x.suggestLevel)>=3);
+ return list.filter(x=>{const d=x.date||"";return d&&(!from||d>=from)&&d<=to});
 }
 function rpRows(p){
  const r=rpRange(p);
@@ -1628,7 +1677,7 @@ function setReportScope(v){RP_SCOPE=v==="uni"?"uni":"mine";document.getElementBy
 /* เปรียบเทียบกับช่วงเวลาก่อนหน้าที่ยาวเท่ากัน เพื่อบอกทิศทางแนวโน้ม */
 function rpPrev(p){
  if(p==="all")return null;
- const r=rpRange(p), months=p==="q"?3:p==="ytd"?new Date().getMonth()+1:12;
+ const r=rpRange(p), months=p==="year"?12:rpSpanMonths(p);   /* รายปีเทียบกับทั้งปีก่อนหน้า รายเดือนเทียบกับเดือนก่อนหน้า */
  const f=new Date(r.from); const pf=new Date(f); pf.setMonth(pf.getMonth()-months);
  /* ต้องคัดชุดข้อมูลด้วยกติกาเดียวกับ rpRows() ทุกข้อ ไม่งั้นเทียบคนละประชากรกัน
     เดิมใช้ visible() เปล่า ๆ ช่วงก่อนหน้าจึงรวมเรื่องที่ยกเลิกและรวมทุกระดับ
@@ -1666,7 +1715,7 @@ function rpMatrix(rows){
 }
 
 /* กราฟพื้นที่แสดงแนวโน้ม แยกเหตุระดับ 3 ขึ้นไป */
-function rpTrendChart(rows,months){return monthlyBarChart(rows,months,"r")}
+function rpTrendChart(rows,months,end){return monthlyBarChart(rows,months,"r",end)}
 
 /* อันดับหน่วยงานตามคะแนนถ่วงน้ำหนักความรุนแรง (ดู RISK_W)
    คอลัมน์ "ระดับสูงสุด" กำกับไว้เสมอ เพราะคะแนนสะสมไม่มีเพดานและถูกอ่านผิดเป็นระดับได้ง่าย
@@ -1778,7 +1827,7 @@ function allDataMonths(){
  const a=new Date(ds[0].slice(0,7)+"-01"), now=new Date();
  return Math.max(1,(now.getFullYear()-a.getFullYear())*12+(now.getMonth()-a.getMonth())+1);
 }
-function afrMonths(p){return p==="q"?3:p==="ytd"?new Date().getMonth()+1:p==="all"?allDataMonths():12}
+function afrMonths(p){return p==="all"?allDataMonths():rpSpanMonths(p)}
 /* กราฟแนวโน้มต้องมีจุดพอที่จะเห็นทิศทาง ช่วงไตรมาสจึงขยายเป็นอย่างน้อย 6 เดือน
    และจำกัดไม่เกิน 24 เดือน เพราะแกนนอนกว้างคงที่ จุดที่มากกว่านั้นจะเบียดจนอ่านไม่ออก */
 function idxMonths(p){return Math.min(24,Math.max(6,afrMonths(p)))}
@@ -2103,16 +2152,16 @@ function idxRowsRange(from,to){
 function idxRows(p){const r=rpRange(p);return idxRowsRange(r.from,r.to)}
 /* กราฟแนวโน้มวาดย้อนหลังอย่างน้อย 6 เดือน ซึ่งอาจกว้างกว่าช่วงที่เลือกบนการ์ด
    จึงต้องดึงข้อมูลให้ครอบคลุมทุกเดือนที่วาด มิฉะนั้นเดือนที่อยู่นอกช่วงจะเป็นศูนย์ทั้งที่มีข้อมูลจริง */
-function idxRowsMonths(m){
- const ks=monthKeys(m);
- return idxRowsRange(ks[0]+"-01", localToday());
+function idxRowsMonths(m,end){
+ const ks=monthKeys(m,end), today=localToday(), e=end?lastDay(end):today;
+ return idxRowsRange(ks[0]+"-01", e<today?e:today);
 }
 
 /* ---- กราฟเส้นเปรียบเทียบ IFR และ ISR รายเดือน ----
    สองค่ามีหน่วยและมาตราต่างกันมาก (ISR นับวันหยุดงาน ปกติสูงกว่า IFR หลายเท่า)
    จึงใช้แกนตั้งสองข้าง ซ้ายคือ IFR ขวาคือ ISR และระบุสีกำกับไว้ที่แกน */
-function idxTrendChart(rows,months,uid){
- const ms=monthKeys(months);
+function idxTrendChart(rows,months,uid,end){
+ const ms=monthKeys(months,end);
  const hpm=idxHours(1);                                   // ชั่วโมงการทำงานต่อหนึ่งเดือน
  if(!(hpm>0))return `<div class="empty"><b>ยังคำนวณไม่ได้</b>ทะเบียนจำนวนบุคลากรยังว่าง กรุณากรอกในการ์ดดัชนีความปลอดภัยด้านบน หรือแจ้งผู้ดูแลระบบ</div>`;
  const pts=ms.map(m=>{const ix=safetyIndex(rows.filter(r=>inMonth(r,m)),hpm);
@@ -2354,7 +2403,11 @@ function pgReport(){
  const comply=reportable.length?Math.round(reported/reportable.length*100):100;
  const pTotal=prev?prev.length:null;
  const pSevere=prev?prev.filter(x=>(x.level||x.suggestLevel)>=3).length:null;
- const months=RP_PERIOD==="q"?3:RP_PERIOD==="ytd"?new Date().getMonth()+1:12;
+ const months=RP_PERIOD==="month"?12:RP_PERIOD==="year"?12:RP_PERIOD==="all"?Math.min(24,Math.max(12,allDataMonths())):rpSpanMonths(RP_PERIOD);
+ const end=rpEnd(RP_PERIOD), plabel=rpLabel(RP_PERIOD);
+ /* รายเดือน: กราฟจำนวนรายเดือนแสดง 12 เดือนจนถึงเดือนที่เลือก เพื่อเห็นแนวโน้ม (ไม่ใช่แท่งเดียว) */
+ const trendRows=RP_PERIOD==="month"?(function(){const ks=monthKeys(12,end);
+  return rpRowsBetween(ks[0]+"-01",lastDay(end));})():rows;
  let scope=ROLES[ME.role].scope==="all"?"ทุกคณะและทุกหน่วยงาน":(ROLES[ME.role].scope==="faculty"?esc(userFaculty(ME)):(ROLES[ME.role].scope==="orgUnit"?esc(userOrgUnit(ME)):"รายงานของฉัน"));
  /* ผู้บริหารเห็นรายงานสถิติเฉพาะระดับ 3 ขึ้นไป จึงต้องระบุไว้บนปกรายงานให้ตรงกับข้อมูลที่แสดง */
  if(ROLES[ME.role].reportLevel3)scope+=" · เฉพาะระดับ 3 ขึ้นไป";
@@ -2368,7 +2421,7 @@ function pgReport(){
   <h2>รายงานสถิติอุบัติการณ์</h2>
   <p>วิเคราะห์สถิติ แนวโน้ม การเปรียบเทียบช่วงเวลา และความครบถ้วนของการรายงาน</p>
   <div class="rp-meta">
-   <span>ช่วงเวลา <b>${RP_PERIODS[RP_PERIOD]}</b></span>
+   <span>ช่วงเวลา <b>${plabel}</b></span>
    <span>${r.from?`<b>${thDate(r.from)}</b> ถึง <b>${thDate(r.to)}</b>`:`ถึง <b>${thDate(r.to)}</b>`}</span>
    <span>ขอบเขต <b>${scope}</b></span>
    <span>จัดทำโดย <b>${esc(ME.name)}</b></span>
@@ -2379,6 +2432,9 @@ function pgReport(){
  <div class="rp-tools">
   ${rpUniOk()?`<div class="rp-seg" style="margin-right:8px"><button class="${uni?"":"on"}" onclick="setReportScope('mine')">${esc(userFaculty(ME))||"หน่วยงานของท่าน"}</button><button class="${uni?"on":""}" onclick="setReportScope('uni')">ทั้งมหาวิทยาลัย</button></div>`:""}
   <div class="rp-seg">${Object.keys(RP_PERIODS).map(k=>`<button class="${k===RP_PERIOD?"on":""}" onclick="setReportPeriod('${k}')">${RP_PERIODS[k]}</button>`).join("")}</div>
+  ${RP_PERIOD==="month"?`<div class="rp-pick"><select aria-label="ปี" onchange="setReportYM('ymYear',this.value)">${rpYears().map(y=>`<option value="${y}"${y===rpYM().slice(0,4)?" selected":""}>พ.ศ. ${+y+543}</option>`).join("")}</select>
+   <select aria-label="เดือน" onchange="setReportYM('month',this.value)">${TH_MONTHS.map((m,i)=>{const v=String(i+1).padStart(2,"0");return `<option value="${v}"${v===rpYM().slice(5,7)?" selected":""}>${m}</option>`}).join("")}</select></div>`:""}
+  ${RP_PERIOD==="year"?`<div class="rp-pick"><select aria-label="ปี" onchange="setReportYM('year',this.value)">${rpYears().map(y=>`<option value="${y}"${y===rpY()?" selected":""}>พ.ศ. ${+y+543}</option>`).join("")}</select></div>`:""}
   <div class="spacer"></div>
   <button class="btn" onclick="exportReportCSV()">ส่งออก CSV</button>
   <button class="btn btn-p" onclick="window.print()">พิมพ์ / บันทึกเป็น PDF</button>
@@ -2386,7 +2442,7 @@ function pgReport(){
 
  <div class="rp-sum"><div class="ic">✦</div><div>
   <h4>สรุปสำหรับผู้บริหาร</h4>
-  <p>ในช่วง<b>${RP_PERIODS[RP_PERIOD]}</b> มีการรายงานอุบัติการณ์ในขอบเขต<b>${scope}</b> รวม <b>${total}</b> เรื่อง
+  <p>ในช่วง<b>${plabel}</b> มีการรายงานอุบัติการณ์ในขอบเขต<b>${scope}</b> รวม <b>${total}</b> เรื่อง
   ${total?`เป็นเหตุระดับ 3 ขึ้นไปที่ต้องรายงานมหาวิทยาลัย <b>${reportable.length}</b> เรื่อง บันทึกการรายงานแล้ว <b>${comply}%</b>
   ปิดเรื่องเรียบร้อยแล้ว <b>${closedPct}%</b> และเป็นเหตุการณ์เกือบเกิดอุบัติเหตุ <b>${nearPct}%</b>
   รวมมูลค่าความเสียหาย <b>${fmtB(damage)}</b> บาท${daysOff?` และมีวันหยุดงานจากการบาดเจ็บรวม <b>${daysOff}</b> วัน`:""}`
@@ -2405,9 +2461,9 @@ function pgReport(){
  ${afrPanel(idxRows(RP_PERIOD),RP_PERIOD)}
 ${ROLES[ME.role].can.safetyIndex?`
  <div class="section-title">แนวโน้มดัชนีความปลอดภัยรายเดือน</div>
- <div class="card"><div class="card-h"><h3>เปรียบเทียบ IFR · PDFR · ISR ${idxMonths(RP_PERIOD)} เดือนล่าสุด</h3>
+ <div class="card"><div class="card-h"><h3>เปรียบเทียบ IFR · PDFR · ISR ${idxMonths(RP_PERIOD)} เดือน${end?" ถึง "+TH_MONTHS[+end.slice(5,7)-1]+" "+(+end.slice(0,4)+543):"ล่าสุด"}</h3>
    <span class="hint">${ROLES[ME.role].scope==="all"?"ระดับมหาวิทยาลัย":esc(userFaculty(ME))}</span></div>
-  <div class="card-b">${idxTrendChart(idxRowsMonths(idxMonths(RP_PERIOD)),idxMonths(RP_PERIOD),"ix")}
+  <div class="card-b">${idxTrendChart(idxRowsMonths(idxMonths(RP_PERIOD),end),idxMonths(RP_PERIOD),"ix",end)}
    <div class="note" style="margin-top:12px;font-size:12.3px"><b>วิธีอ่านกราฟ</b> เส้นทึบสีน้ำตาลคือ <b>IFR</b> บอกว่าเกิดการบาดเจ็บ<b>บ่อยแค่ไหน</b> เส้นประสีน้ำเงินคือ <b>PDFR</b> บอกว่าเกิดความเสียหายทางทรัพย์สิน<b>บ่อยแค่ไหน</b>
     ทั้งสองเส้นเป็นจำนวนครั้งต่อชั่วโมงการทำงาน 1,000,000 ชั่วโมงเหมือนกัน จึงใช้<b>แกนซ้ายร่วมกันและเทียบกันได้โดยตรง</b>
     <br>เส้นประสีส้มคือ <b>ISR</b> อ่านค่าจาก<b>แกนขวา</b> บอกว่าเมื่อบาดเจ็บแล้ว<b>รุนแรงแค่ไหน</b> โดยนับเป็นวันหยุดงาน คนละหน่วยกับสองเส้นแรก
@@ -2424,7 +2480,7 @@ ${canCompareFaculties()?`
  <div class="section-title">แนวโน้มการเกิดอุบัติการณ์</div>
  <div class="grid g23">
   <div class="card"><div class="card-h"><h3>จำนวนอุบัติการณ์รายเดือน</h3><span class="hint">ส่วนสีเข้มคือเหตุระดับ 3 ขึ้นไป</span></div>
-   <div class="card-b">${rpTrendChart(rows,months)}</div></div>
+   <div class="card-b">${rpTrendChart(trendRows,months,end)}</div></div>
   <div class="card"><div class="card-h"><h3>การกระจายตามระดับความรุนแรง</h3></div>
    <div class="card-b">${levelBars(rows)}</div></div>
  </div>
@@ -2452,7 +2508,7 @@ ${uni?`
 
  <div class="rp-foot">
   <span>มหาวิทยาลัยนเรศวร · รายงานฉบับนี้สร้างจากข้อมูลในระบบ ณ เวลาที่ระบุ และแสดงเฉพาะข้อมูลในขอบเขตสิทธิ์ของผู้จัดทำ</span>
-  <span class="mono">${RP_PERIODS[RP_PERIOD]} · ${total} เรื่อง</span>
+  <span class="mono">${plabel} · ${total} เรื่อง</span>
  </div>`;
 }
 
@@ -2485,7 +2541,7 @@ function exportReportCSV(){
  const csv="\uFEFF"+cols.map(([h])=>csvQ(h)).join(",")+"\n"+body;
  const a=document.createElement("a");
  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
- a.download="รายงานสถิติอุบัติการณ์_"+RP_PERIOD+"_"+new Date().toISOString().slice(0,10)+".csv";
+ a.download="รายงานสถิติอุบัติการณ์_"+(RP_PERIOD==="month"?rpYM():RP_PERIOD==="year"?rpY():RP_PERIOD)+"_"+new Date().toISOString().slice(0,10)+".csv";
  a.click();URL.revokeObjectURL(a.href);
  audit("ส่งออกรายงานสถิติ","CSV "+rows.length+" รายการ");
  logServerExport("รายงานสถิติ CSV",rows.length);
