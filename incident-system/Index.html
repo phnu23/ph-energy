@@ -528,6 +528,7 @@ textarea{min-height:92px;resize:vertical}
 .catgrp-h{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;list-style:none;user-select:none}
 .catgrp-h::-webkit-details-marker{display:none}
 .catgrp-h .gname{flex:1;min-width:0}
+.catgrp-h .gcnt:empty{display:none}
 .catgrp-h .gcnt{flex:none;font-size:11.5px;font-weight:600;background:var(--saed);color:#fff;border-radius:999px;padding:2px 9px}
 .catgrp-h .chev{flex:none;width:9px;height:9px;border:solid var(--steel);border-width:0 2px 2px 0;transform:rotate(45deg);margin:0 4px 4px 0;transition:.16s}
 .catgrp[open]>.catgrp-h .chev{transform:rotate(-135deg);margin:4px 4px 0 0}
@@ -1127,7 +1128,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.29";
+const CLIENT_VERSION="2.8.30";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -1237,10 +1238,13 @@ function buildNav(){
  /* ผู้รายงานไม่เห็น Dashboard ทั้งสองหน้า (รุ่น 2.8.18) — ข้อมูลมากเกินความจำเป็นสำหรับผู้รายงาน
     เมนูของผู้รายงานจึงเหลือ เขียนรายงาน และรายงานของฉัน (รายการเรื่องที่ตนเองรายงาน) */
  if(ME.role!=="reporter"&&!r.reportOnly)items.push({p:"dash",l:"Dashboard ติดตามอุบัติการณ์"});   /* รองอธิการบดี (ทั่วไป) / ผู้ช่วยอธิการบดี ใช้เฉพาะรายงานภาพรวม (2.8.21) */
- if(r.can.create)items.push({p:"new",l:"เขียนรายงานอุบัติการณ์"});
  /* บทบาทกำกับดูแลใช้ข้อมูลระดับภาพรวม ไม่เข้าถึงรายเรื่องเพื่อคงความเป็นเจ้าของข้อมูลไว้ที่คณะ */
  if(!r.oversight||r.execRead){
   items.push({p:"list",l:r.execRead?"รายงานอุบัติการณ์ระดับ 3 ขึ้นไป":ME.role==="reporter"?"รายงานของฉัน":"รายงานอุบัติการณ์",n:open});
+ }
+ /* ลำดับเมนู (รุ่น 2.8.30): รายงานอุบัติการณ์ อยู่ใต้ Dashboard ติดตาม แล้วจึงเป็น เขียนรายงานอุบัติการณ์ */
+ if(r.can.create)items.push({p:"new",l:"เขียนรายงานอุบัติการณ์"});
+ if(!r.oversight||r.execRead){
   items.push({p:"search",l:"ค้นหาย้อนหลัง"});
  }
  items.push({k:"ข้อมูลอ้างอิง"});
@@ -3468,7 +3472,7 @@ function pgNew(){
    <div class="card-b" id="routePrev"></div></div>
  </div>`;
 }
-function initForm(){F={cats:[],catOther:"",kind:"",parts:[],files:[],anon:false,step:0,inj:1,dmg:1};pickInj(1);renderFiles()}
+function initForm(){F={cats:[],catOther:"",kind:"",parts:[],files:[],anon:false,step:0,inj:1,dmg:1};pickInj(1);renderFiles();updateCatCounts()}
 function stepTo(i){
  F.step=i;
  document.querySelectorAll(".step-tab").forEach(t=>t.classList.toggle("on",+t.dataset.s===i));
