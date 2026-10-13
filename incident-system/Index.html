@@ -1069,8 +1069,8 @@ const ROLES={
  reporter:{name:"ผู้ประสบเหตุ / ผู้พบเห็น",short:"ผู้รายงาน",code:"REPORTER",scope:"own",
   desc:"เขียนรายงานอุบัติการณ์และติดตามสถานะเรื่องของตนเอง",
   can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0}},
- supervisor:{name:"หัวหน้างาน / หัวหน้าภาควิชา",short:"หัวหน้างาน",code:"SUPERVISOR",scope:"orgUnit",
-  desc:"รับแจ้งเหตุลำดับแรก ยืนยันข้อเท็จจริง และร่วมสอบสวนในหน่วยงานของตน",
+ supervisor:{name:"หัวหน้างาน / หัวหน้าภาควิชา",short:"หัวหน้างาน",code:"SUPERVISOR",scope:"orgUnit",facReport:1,
+  desc:"รับแจ้งเหตุลำดับแรก ยืนยันข้อเท็จจริง และร่วมสอบสวนในหน่วยงานของตน ดู Dashboard รายงานภาพรวมของคณะได้ (สถิติรวม)",
   can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0}},
  office_head:{name:"หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย",short:"หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย",code:"OFFICE_HEAD",scope:"faculty",sensitiveAccess:1,
   desc:"ผู้รับผิดชอบหลักของคณะ ประเมินระดับความรุนแรง ดำเนินการสอบสวน กำหนดและติดตามมาตรการ จนถึงปิดมาตรการแก้ไข",
@@ -1128,7 +1128,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.30";
+const CLIENT_VERSION="2.8.31";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -1144,10 +1144,15 @@ const isCross=x=>!!(x&&x.crossOnly);
    ระดับ 3+ ติดธง crossRead (อ่านรายละเอียดได้อย่างเดียว) ระดับ 1–2 เป็นแถวสรุป summaryOnly
    แถวเหล่านี้ไม่เข้ารายการ งานที่ต้องทำ แถบเตือน Dashboard ติดตาม หรือดัชนีของคณะ */
 const isCrossRead=x=>!!(x&&x.crossRead);
-const isOtherUnit=x=>!!(x&&(x.crossOnly||x.crossRead||(x.summaryOnly&&ME&&ROLES[ME.role].scope==="faculty")));
-let RP_SCOPE="mine";   /* "mine" = คณะของท่าน · "uni" = ทั้งมหาวิทยาลัย (เฉพาะบทบาทที่มี crossLevel3) */
-const rpUniOk=()=>!!(ME&&ROLES[ME.role].crossLevel3);
-const rpScopeOk=x=>(rpUniOk()&&RP_SCOPE==="uni")||!isOtherUnit(x);
+const isOtherUnit=x=>!!(x&&(x.crossOnly||x.crossRead||(x.summaryOnly&&ME&&(ROLES[ME.role].scope==="faculty"||ROLES[ME.role].scope==="orgUnit"))));
+/* ขอบเขตหน้ารายงานภาพรวม: "mine" = หน่วยงานของท่าน · "uni" = ขอบเขตกว้าง
+   คณบดี (crossLevel3) = ทั้งมหาวิทยาลัย · หัวหน้างาน (facReport · 2.8.31) = ทั้งคณะ
+   "" = ค่าเริ่มต้นของบทบาท: หัวหน้างานเปิดที่ทั้งคณะ บทบาทอื่นเปิดที่หน่วยงานของตน */
+let RP_SCOPE="";
+const rpUniOk=()=>!!(ME&&(ROLES[ME.role].crossLevel3||ROLES[ME.role].facReport));
+const rpFacWide=()=>!!(ME&&ROLES[ME.role].facReport);
+const rpWide=()=>rpUniOk()&&(RP_SCOPE==="uni"||(RP_SCOPE===""&&rpFacWide()));
+const rpScopeOk=x=>rpWide()||!isOtherUnit(x);
 
 function overviewRows(list){
  if(!ME)return[];
@@ -1155,6 +1160,8 @@ function overviewRows(list){
  if(ROLES[ME.role].crossLevel3)return base;     /* รวมเรื่องข้ามหน่วยงานที่เซิร์ฟเวอร์ส่งมาแล้ว */
  /* ผู้บริหารระดับมหาวิทยาลัย: แดชบอร์ดนับครบทุกระดับ รวมแถวสรุประดับ 1–2 ที่ไม่มีเนื้อหา (2.8.11) */
  if(ROLES[ME.role].execRead)return base.filter(x=>!isCross(x));
+ /* หัวหน้างาน (facReport): รวมแถวสรุปของหน่วยงานอื่นในคณะ ใช้ได้เฉพาะรายงานภาพรวมแบบทั้งคณะ (rpScopeOk) */
+ if(ROLES[ME.role].facReport)return base.filter(x=>!isCross(x)&&!isCrossRead(x)&&(!x.summaryOnly||isOtherUnit(x)||ownReport(x)));
  return visible(list);
 }
 
@@ -1164,6 +1171,8 @@ function statVisible(list){
  /* รองอธิการบดี (ทั่วไป) ขอบเขตเป็นทั้งมหาวิทยาลัย แถวสรุปที่เซิร์ฟเวอร์ส่งมาเพิ่มจึงทำให้
     ตัวตั้งเท่ากับตัวเลขจริงของทั้งมหาวิทยาลัย ซึ่งตรงกับตัวหารที่เป็นบุคลากรทั้งมหาวิทยาลัย */
  if(r.level3Only&&r.can.safetyIndex)return list||[];
+ /* หัวหน้างานในมุมมองทั้งคณะ: นับทุกหน่วยงานในคณะ (แถวสรุปรวมด้วย) คู่กับตัวหารของทั้งคณะใน orgHoursTotal() */
+ if(hcFacWide())return (list||[]).filter(x=>!isStat(x)&&!isCross(x)&&!isCrossRead(x));
  if(r.execRead)return (list||[]).filter(x=>!isStat(x)&&!isCross(x));   /* ดัชนีต้องนับระดับ 1–2 ด้วย จึงรวมแถวสรุป */
  /* คณบดีต่างออกไป ขอบเขตเป็นระดับคณะ ตัวหารจาก OrgHeadcount จึงเป็นบุคลากรเฉพาะคณะตนเอง
     ถ้ารวมแถวข้ามคณะ (crossOnly ระดับ 3 ขึ้นไปของคณะอื่น) เข้ามาในตัวตั้งด้วย
@@ -1737,7 +1746,7 @@ function rpTrendChart(rows,months,end){return monthlyBarChart(rows,months,"r",en
    คอลัมน์ "ระดับสูงสุด" กำกับไว้เสมอ เพราะคะแนนสะสมไม่มีเพดานและถูกอ่านผิดเป็นระดับได้ง่าย
    เช่น 3 เรื่องระดับ 1–2 รวมได้ 5 คะแนน ทั้งที่ไม่มีเรื่องใดถึงระดับ 5 เลยสักเรื่อง */
 function rpRank(rows){
- const key=ROLES[ME.role].scope==="all"||(rpUniOk()&&RP_SCOPE==="uni")?facultyOf:orgUnitOf,m={};
+ const key=ROLES[ME.role].scope==="all"||(rpWide()&&!rpFacWide())?facultyOf:orgUnitOf,m={};
  rows.forEach(r=>{const k=key(r);if(!m[k])m[k]={n:0,risk:0,sev:0,baht:0,top:0};
   const L=Math.max(0,Math.min(5,rowLevel(r)));   /* กันข้อมูลนอกช่วง 1–5 ไม่ให้ SEV[L] เป็น undefined */
   m[k].n++;m[k].risk+=riskWeight(r);
@@ -1773,7 +1782,7 @@ function rpFindings(rows){
  const closed=rows.filter(x=>x.status==="closed").length;
  const cm={};rows.forEach(r=>(r.causes||[]).forEach(c=>cm[c]=(cm[c]||0)+1));
  const topCause=Object.entries(cm).sort((a,b)=>b[1]-a[1])[0];
- const um={};rows.forEach(r=>{const k=ROLES[ME.role].scope==="all"||(rpUniOk()&&RP_SCOPE==="uni")?facultyOf(r):orgUnitOf(r);um[k]=(um[k]||0)+1});
+ const um={};rows.forEach(r=>{const k=ROLES[ME.role].scope==="all"||(rpWide()&&!rpFacWide())?facultyOf(r):orgUnitOf(r);um[k]=(um[k]||0)+1});
  const topUnit=Object.entries(um).sort((a,b)=>b[1]-a[1])[0];
 
  if(lateUni.length)f.push({c:"crit",t:`มี ${lateUni.length} เรื่องระดับ 3 ขึ้นไปที่ยังไม่บันทึกการรายงานมหาวิทยาลัย`,
@@ -1816,8 +1825,10 @@ const PDFR_MIN_DAMAGE=2;
 let ORG_HC=null, ORG_HC_STATE="idle", ORG_HC_ERR="", ORG_HC_DIRTY={};
 /* ล้างค่าที่ค้างอยู่ในเครื่องจากรุ่นก่อน กันไม่ให้ใครเข้าใจว่ายังตั้งค่าจากเบราว์เซอร์ได้อยู่ */
 (function(){try{window.localStorage.removeItem(AFR_KEY)}catch(e){}})();
-function orgHoursTotal(){return ORG_HC?Number(ORG_HC.totalHoursPerYear)||0:0}
-function orgHeadTotal(){return ORG_HC?Number(ORG_HC.totalHeadcount)||0:0}
+/* หัวหน้างานในมุมมองทั้งคณะ ใช้ตัวหารของทั้งคณะที่เซิร์ฟเวอร์รวมมาให้ (2.8.31) */
+const hcFacWide=()=>rpFacWide()&&rpWide()&&PAGE==="report"&&ORG_HC&&Number(ORG_HC.facultyHoursPerYear)>0;
+function orgHoursTotal(){return ORG_HC?Number(hcFacWide()?ORG_HC.facultyHoursPerYear:ORG_HC.totalHoursPerYear)||0:0}
+function orgHeadTotal(){return ORG_HC?Number(hcFacWide()?ORG_HC.facultyHeadcount:ORG_HC.totalHeadcount)||0:0}
 function orgReady(){return orgHeadTotal()>0&&orgHoursTotal()>0}
 function loadOrgHeadcount(force){
  if(ORG_HC_STATE==="loading")return;
@@ -2132,7 +2143,7 @@ function afrPanel(rows,p){
     :!orgReady()?`<div class="note warn" style="margin:0">ยังไม่มีจำนวนบุคลากรในทะเบียน จึงยังคำนวณดัชนีไม่ได้
       ${ORG_HC&&ORG_HC.canEdit?"กรุณากรอกในตารางด้านล่าง":"ผู้กรอกคือหัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย หรือรองคณบดี (กำกับดูแล) ของแต่ละคณะ/กอง"}</div>`
     :`<div class="afr-stat">
-      <div class="afr-s"><div class="k">บุคลากรในขอบเขต</div><div class="v">${fmtN(orgHeadTotal())} <small>คน · ${ORG_HC.configured} หน่วยงาน</small></div></div>
+      <div class="afr-s"><div class="k">บุคลากรในขอบเขต</div><div class="v">${fmtN(orgHeadTotal())} <small>คน · ${hcFacWide()?"ทั้งคณะ":ORG_HC.configured+" หน่วยงาน"}</small></div></div>
       <div class="afr-s"><div class="k">ชั่วโมงทำงานรวม/ปี</div><div class="v">${fmtN(orgHoursTotal())} <small>ชม.</small></div></div>
      </div>`}
    ${hcPanel()}
@@ -2427,9 +2438,9 @@ function pgReport(){
  let scope=ROLES[ME.role].scope==="all"?"ทุกคณะและทุกหน่วยงาน":(ROLES[ME.role].scope==="faculty"?esc(userFaculty(ME)):(ROLES[ME.role].scope==="orgUnit"?esc(userOrgUnit(ME)):"รายงานของฉัน"));
  /* ผู้บริหารเห็นรายงานสถิติเฉพาะระดับ 3 ขึ้นไป จึงต้องระบุไว้บนปกรายงานให้ตรงกับข้อมูลที่แสดง */
  if(ROLES[ME.role].reportLevel3)scope+=" · เฉพาะระดับ 3 ขึ้นไป";
- const uni=rpUniOk()&&RP_SCOPE==="uni";
- if(uni)scope="ทั้งมหาวิทยาลัย · ทุกระดับ";
- const sev3=uni?rows.filter(x=>rowLevel(x)>=3&&!x.summaryOnly).sort((a,b)=>String(b.date).localeCompare(String(a.date))):[];
+ const uni=rpWide(), facWide=uni&&rpFacWide();
+ if(uni)scope=facWide?esc(userFaculty(ME))+" · ทั้งคณะ":"ทั้งมหาวิทยาลัย · ทุกระดับ";
+ const sev3=uni&&!facWide?rows.filter(x=>rowLevel(x)>=3&&!x.summaryOnly).sort((a,b)=>String(b.date).localeCompare(String(a.date))):[];
 
  return `
  <div class="rp-cover">
@@ -2446,7 +2457,7 @@ function pgReport(){
  </div>
 
  <div class="rp-tools">
-  ${rpUniOk()?`<div class="rp-seg" style="margin-right:8px"><button class="${uni?"":"on"}" onclick="setReportScope('mine')">${esc(userFaculty(ME))||"หน่วยงานของท่าน"}</button><button class="${uni?"on":""}" onclick="setReportScope('uni')">ทั้งมหาวิทยาลัย</button></div>`:""}
+  ${rpUniOk()?`<div class="rp-seg" style="margin-right:8px"><button class="${uni?"":"on"}" onclick="setReportScope('mine')">${esc(rpFacWide()?(userOrgUnit(ME)||"หน่วยงานของท่าน"):(userFaculty(ME)||"หน่วยงานของท่าน"))}</button><button class="${uni?"on":""}" onclick="setReportScope('uni')">${rpFacWide()?"ทั้งคณะ":"ทั้งมหาวิทยาลัย"}</button></div>`:""}
   <div class="rp-seg">${Object.keys(RP_PERIODS).map(k=>`<button class="${k===RP_PERIOD?"on":""}" onclick="setReportPeriod('${k}')">${RP_PERIODS[k]}</button>`).join("")}</div>
   ${RP_PERIOD==="month"?`<div class="rp-pick"><select aria-label="ปี" onchange="setReportYM('ymYear',this.value)">${rpYears().map(y=>`<option value="${y}"${y===rpYM().slice(0,4)?" selected":""}>พ.ศ. ${+y+543}</option>`).join("")}</select>
    <select aria-label="เดือน" onchange="setReportYM('month',this.value)">${TH_MONTHS.map((m,i)=>{const v=String(i+1).padStart(2,"0");return `<option value="${v}"${v===rpYM().slice(5,7)?" selected":""}>${m}</option>`}).join("")}</select></div>`:""}
@@ -2473,7 +2484,8 @@ function pgReport(){
  </div>
 
  <div class="section-title">ดัชนีความปลอดภัย · Injury Frequency Rate · Property Damage Frequency Rate · Injury Severity Rate</div>
- ${uni?`<div class="note" style="margin-bottom:12px;font-size:12.5px">ดัชนีในส่วนนี้คำนวณของ <b>${esc(userFaculty(ME))}</b> (ตัวหารเป็นชั่วโมงทำงานของหน่วยงานตนเอง) · ค่าของทั้งมหาวิทยาลัยและของแต่ละคณะดูได้ที่กราฟเปรียบเทียบด้านล่าง (เส้นสีแดง = ค่ารวมมหาวิทยาลัย)</div>`:""}
+ ${facWide?`<div class="note" style="margin-bottom:12px;font-size:12.5px">ดัชนีในส่วนนี้คำนวณของ <b>ทั้ง${esc(userFaculty(ME))}</b> จากจำนวนบุคลากรทุกหน่วยงานในคณะ · เรื่องของหน่วยงานอื่นแสดงเป็นตัวเลขรวมเท่านั้น</div>`:""}
+ ${uni&&!facWide?`<div class="note" style="margin-bottom:12px;font-size:12.5px">ดัชนีในส่วนนี้คำนวณของ <b>${esc(userFaculty(ME))}</b> (ตัวหารเป็นชั่วโมงทำงานของหน่วยงานตนเอง) · ค่าของทั้งมหาวิทยาลัยและของแต่ละคณะดูได้ที่กราฟเปรียบเทียบด้านล่าง (เส้นสีแดง = ค่ารวมมหาวิทยาลัย)</div>`:""}
  ${afrPanel(idxRows(RP_PERIOD),RP_PERIOD)}
 ${ROLES[ME.role].can.safetyIndex?`
  <div class="section-title">แนวโน้มดัชนีความปลอดภัยรายเดือน</div>
@@ -2501,7 +2513,7 @@ ${canCompareFaculties()?`
    <div class="card-b">${levelBars(rows)}</div></div>
  </div>
 
-${uni?`
+${uni&&!facWide?`
  <div class="section-title">อุบัติการณ์ระดับ 3 ขึ้นไปทั้งมหาวิทยาลัย · ${sev3.length} เรื่อง</div>
  <div class="note" style="margin-bottom:10px;font-size:12.5px">กดที่แถวเพื่อเปิดอ่านรายละเอียด เรื่องของหน่วยงานอื่นอ่านได้อย่างเดียว · ระดับ 1–2 ของหน่วยงานอื่นแสดงเฉพาะในสถิติ</div>
  <div class="card"><div class="tbl-wrap">${table(sev3)}</div></div>
@@ -2642,7 +2654,9 @@ function pgDetail(){
  if(ROLES[ME.role].oversight&&!ROLES[ME.role].execRead&&!ownReport(rec0))return `<div class="empty"><b>บทบาทนี้ใช้ข้อมูลเพื่อการกำกับติดตาม</b>${ROLES[ME.role].name} เข้าถึงแดชบอร์ดติดตามและรายงานสถิติ การดูรายละเอียดรายเรื่องเป็นสิทธิ์ของผู้ปฏิบัติในคณะ</div>`;
  const r=visible(INCIDENTS).find(x=>x.id===CURRENT)   // บังคับขอบเขตสิทธิ์ที่หน้ารายละเอียดด้วย ไม่ใช่แค่ซ่อนลิงก์
   ||(ROLES[ME.role].crossLevel3?INCIDENTS.find(x=>x.id===CURRENT&&isCrossRead(x)):null);   /* ระดับ 3+ ของหน่วยงานอื่น · อ่านอย่างเดียว */
- if(rec0&&rec0.summaryOnly&&isOtherUnit(rec0))return `<div class="empty"><b>เรื่องระดับ 1–2 ของหน่วยงานอื่นแสดงเฉพาะในสถิติ</b>เปิดอ่านรายละเอียดได้เฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป</div>`;
+ if(rec0&&rec0.summaryOnly&&isOtherUnit(rec0))return rpFacWide()
+  ?`<div class="empty"><b>เรื่องของหน่วยงานอื่นในคณะแสดงเฉพาะในสถิติภาพรวม</b>เปิดอ่านรายละเอียดได้เฉพาะเรื่องของหน่วยงานของท่าน</div>`
+  :`<div class="empty"><b>เรื่องระดับ 1–2 ของหน่วยงานอื่นแสดงเฉพาะในสถิติ</b>เปิดอ่านรายละเอียดได้เฉพาะอุบัติการณ์ระดับ 3 ขึ้นไป</div>`;
  if(!r)return `<div class="empty"><b>ไม่พบรายงาน</b>เรื่องนี้อาจอยู่นอกขอบเขตสิทธิ์ของท่าน</div>`;
  if(!canOpen(r))return `<button class="btn btn-sm" onclick="go('list')" style="margin-bottom:16px">← กลับรายการ</button>
   <div class="card"><div class="card-b"><div class="lock">🔒 <span>เหตุการณ์นี้จัดเป็นข้อมูลอ่อนไหว เปิดอ่านรายละเอียดได้เฉพาะหัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย รองคณบดี (กำกับดูแล) คณบดี / ผู้อำนวยการกอง ของหน่วยงานนั้น และผู้บริหารมหาวิทยาลัย ระบบยังนับรวมในสถิติภาพรวมโดยไม่แสดงเนื้อหา</span></div></div></div>`;
@@ -4236,7 +4250,7 @@ logout  = function(){
   FIX = null; FIX_STATE = 'idle'; FIX_ERR = ''; FIX_PERIOD = ''; FIX_GROUP = '';
   HC_CALC = null; HC_CALC_ROW = 0; HC_CALC_OPEN = false; HC_BOX_OPEN = false;
   /* ตัวกรองหน้าจอของผู้ใช้คนก่อนไม่ควรติดไปกับผู้ใช้คนถัดไป (2.8.26) */
-  DASH_FACULTY = ''; DASH_ORGUNIT = ''; DASH_YEAR = ''; RP_SCOPE = 'mine'; CT_FAC = ''; CT_YEAR = ''; CT_MONTH = '';
+  DASH_FACULTY = ''; DASH_ORGUNIT = ''; DASH_YEAR = ''; RP_SCOPE = ''; CT_FAC = ''; CT_YEAR = ''; CT_MONTH = '';
   SYNC_MARK = '';
   LAST_SYNC = null;
   BUSY = false;

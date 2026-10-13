@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.30
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.31
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -190,6 +190,18 @@ function unitHeadcount_() {
     ok_(!mine.summaryOnly, 'ผู้รายงานเห็นเรื่องของตนเองครบ');
     var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].execRead; }).sort();
     return eq_(holders, ['assistant_president','president','vice_president','vice_president_sup'], 'บทบาทที่มี execRead');
+  });
+
+  /* รุ่น 2.8.31 — หัวหน้างานเห็นสถิติทั้งคณะ แต่เรื่องของหน่วยงานอื่นเป็นแถวสรุปเท่านั้น */
+  t_('หัวหน้างาน: สถิติภาพรวมทั้งคณะ', function () {
+    var sup = { registered:true, role:'supervisor', email:'s@nu.ac.th', faculty:'คณะแพทยศาสตร์', orgUnit:'งาน ก' };
+    var mk = function (id, fac, ou, lv) { return { id:id, faculty:fac, orgUnit:ou, level:lv, suggestLevel:lv, status:'assessed', title:'t' + id, detail:'d', place:'p', cats:[], capa:[], reporterEmail:'r@nu.ac.th' }; };
+    var list = [mk('A1','คณะแพทยศาสตร์','งาน ก',1), mk('A2','คณะแพทยศาสตร์','งาน ข',4), mk('B1','คณะวิศวกรรมศาสตร์','งาน ก',2)];
+    var by = {}; scoped_(sup, list).forEach(function (x) { by[x.id] = x; });
+    ok_(by.A1 && !by.A1.summaryOnly && by.A1.detail === 'd', 'หน่วยงานตนเองเห็นครบ');
+    ok_(by.A2 && by.A2.summaryOnly && by.A2.detail === '' && by.A2.place === '' && by.A2.title.indexOf('tA2') < 0, 'หน่วยงานอื่นในคณะเป็นแถวสรุป (ระดับ 4 ก็ไม่มีเนื้อหา)');
+    ok_(!by.B1, 'คณะอื่นไม่ถูกส่งมา');
+    return 'ผ่าน';
   });
 
   /* รุ่น 2.8.22 — คณบดีเห็นภาพรวมทั้งมหาวิทยาลัยทุกระดับ อ่านระดับ 3+ ของหน่วยงานอื่นได้อย่างเดียว */

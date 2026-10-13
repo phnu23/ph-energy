@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.30';
+var APP_VERSION = '2.8.31';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -171,7 +171,7 @@ function isSensitive_(cats) {
    เดิมเป็นรายชื่อบทบาทที่เขียนซ้ำไว้สองไฟล์ ถ้าแก้ไม่ครบ หน้าจอจะเปิดให้กดแต่เซิร์ฟเวอร์ส่งข้อมูลปิดบังมา */
 var ROLES = {
   reporter         : { scope:'own',     can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
-  supervisor       : { scope:'orgUnit', can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
+  supervisor       : { scope:'orgUnit', facReport:1, can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
   /* edit = แก้ไขข้อมูลที่ผู้รายงานกรอก (editIncident_) — หัวหน้าสำนักงาน รองคณบดี (กำกับดูแล) และผู้ดูแลระบบ */
   office_head      : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1} },
   /* รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัย ร่วมดำเนินการได้
@@ -1268,7 +1268,17 @@ function scoped_(u, list) {
       out = out.concat(list.filter(function (x) { return !sameFaculty_(x.faculty, u.faculty); }));
     }
   }
-  else out = list.filter(function (x) { return inScope_(u, x); });
+  else {
+    out = list.filter(function (x) { return inScope_(u, x); });
+    /* หัวหน้างาน / หัวหน้ากลุ่มสาขา (facReport · รุ่น 2.8.31) — Dashboard รายงานภาพรวมของทั้งคณะ
+       เรื่องของหน่วยงานอื่นในคณะเดียวกันส่งไปเป็นแถวสรุป (summaryOnly) ทุกระดับ มีเฉพาะตัวเลขที่ใช้นับ
+       ไม่มีชื่อเรื่อง เนื้อหา ผู้รายงาน สถานที่ หรือบันทึก — เปิดรายละเอียดหรือแก้ไขไม่ได้ */
+    if (role.facReport && role.scope === 'orgUnit') {
+      out = out.concat(list.filter(function (x) {
+        return sameFaculty_(x.faculty, u.faculty) && !inScope_(u, x) && !isOwner_(u, x);
+      }));
+    }
+  }
 
   /* ผู้มีสิทธิ์อ่านเรื่องอ่อนไหวกำหนดที่ธง sensitiveAccess ใน ROLES จุดเดียว (ตรงกับฝั่งหน้าจอ) */
   var canSee = !!role.sensitiveAccess;
@@ -1277,6 +1287,7 @@ function scoped_(u, list) {
        มิฉะนั้นคนที่แจ้งเรื่องการคุกคามหรือภาวะวิกฤต จะติดตามเรื่องของตัวเองไม่ได้เลย */
     var mine = isOwner_(u, x);
     var crossRead = !!role.crossLevel3 && role.scope === 'faculty' && !mine && !sameFaculty_(x.faculty, u.faculty);
+    if (role.facReport && role.scope === 'orgUnit' && !mine && !inScope_(u, x)) return execSummary_(x);
     if ((role.execRead || crossRead) && !mine && effLevel_(x) < EXEC_DETAIL_MIN_LEVEL) return execSummary_(x);
     /* บทบาทระดับคณะเข้าถึงเรื่องอ่อนไหวได้เฉพาะของหน่วยงานตนเอง
        เดิมไม่ต้องตรวจเพราะขอบเขตจำกัดอยู่แล้ว แต่ตอนนี้เห็นข้ามหน่วยงานได้ จึงต้องตรวจ */
@@ -2186,7 +2197,9 @@ function findScopedRaw_(u, id) {
   if (!r) throw apiError_('NOT_FOUND', 'ไม่พบรายงานนี้ หรืออยู่นอกขอบเขตสิทธิ์ของท่าน');
   if (r.summaryOnly) {
     audit_(u, 'ถูกปฏิเสธการเข้าถึงรายละเอียด', id, 'ผู้บริหารเห็นเรื่องระดับ 1–2 เฉพาะในสถิติ');
-    throw apiError_('FORBIDDEN', 'เรื่องระดับ 1–2 แสดงเฉพาะในสถิติ ท่านเปิดรายละเอียดได้เฉพาะเรื่องระดับ 3 ขึ้นไป');
+    throw apiError_('FORBIDDEN', role.facReport
+      ? 'เรื่องนี้เป็นของหน่วยงานอื่นในคณะ แสดงเฉพาะในสถิติภาพรวม'
+      : 'เรื่องระดับ 1–2 แสดงเฉพาะในสถิติ ท่านเปิดรายละเอียดได้เฉพาะเรื่องระดับ 3 ขึ้นไป');
   }
   if (r.statOnly) {
     audit_(u, 'ถูกปฏิเสธการเข้าถึงรายละเอียด', id, 'บทบาทนี้เห็นเรื่องนี้เฉพาะในสถิติ');
@@ -2574,7 +2587,16 @@ function orgHeadcountList_() {
   });
   /* configured นับเฉพาะหน่วยงานที่กรอกจำนวนคนแล้วจริง ๆ หน้าจอใช้ค่านี้บอกความครบถ้วน
      เพราะแถวที่มีอยู่แต่จำนวนคนเป็น 0 ไม่ได้ช่วยให้คำนวณดัชนีได้เลย */
+  /* facReport: ตัวหารของดัชนีระดับคณะ (รวมทุกหน่วยงานในคณะ) ส่งเป็นตัวเลขรวมเท่านั้น ไม่ส่งรายแถวของหน่วยงานอื่น */
+  var facPeople = 0, facHours = 0;
+  if (ROLES[u.role].facReport) {
+    readAll_('OrgHeadcount').forEach(function (r) {
+      if (!sameFaculty_(r.faculty, u.faculty) || !(r.headcount > 0)) return;
+      facPeople += r.headcount; facHours += r.headcount * orgHoursPerYear_(r);
+    });
+  }
   return { rows:out, scope:ROLES[u.role].scope, faculty:u.faculty, orgUnit:u.orgUnit,
+           facultyHeadcount:facPeople, facultyHoursPerYear:facHours,
            units:out.length, configured:out.filter(function (r) { return r.headcount > 0; }).length,
            totalHeadcount:totalPeople, totalHoursPerYear:totalHours,
            defaultHoursPerYear:defaultHoursPerYear_(),
