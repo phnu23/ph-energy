@@ -1128,7 +1128,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.31";
+const CLIENT_VERSION="2.8.32";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -3872,6 +3872,7 @@ var API_ACTION_MAP = {
   addSuggestion:'incident.suggest', reportToUniversity:'incident.reportUniversity', cancelIncident:'incident.cancel',
   returnIncident:'incident.return', editIncident:'incident.edit',
   uploadAttachment:'attachment.upload', adminListUsers:'admin.user.list', adminSaveUser:'admin.user.update',
+  adminDeleteUser:'admin.user.delete', adminUsersSource:'admin.user.source',
   adminCheckUsers:'admin.readiness', logExport:'export.log', adminListAudit:'audit.list',
   systemHealth:'system.health', adminInstallTriggers:'admin.installTriggers',
   adminSetupStorage:'admin.setupStorage', adminBackup:'admin.backup',
@@ -3889,7 +3890,8 @@ function apiPayload(fn,a){
   switch(fn){
     case 'getAuthConfig': case 'authDiagnose': case 'getBootstrap': case 'adminListUsers': case 'systemHealth':
     case 'adminInstallTriggers': case 'adminSetupStorage': case 'orgHeadcountList': case 'reportFacultyIndex':
-    case 'adminBackup': case 'adminSelfTest': return {};
+    case 'adminBackup': case 'adminSelfTest': case 'adminUsersSource': return {};
+    case 'adminDeleteUser':     return {email:String(a[0]||'')};
     case 'orgHeadcountSave':    return {rows:a[0]||[]};
     case 'refresh': return {since:a[0]||''};
     case 'registerSelf': case 'createIncident': case 'uploadAttachment': case 'adminSaveUser':
@@ -4409,11 +4411,13 @@ function renderUsers(list){
    (isSysAdminUI() ? '<div class="section-title">สุขภาพระบบ</div>' +
    '<div id="healthHost"><div class="empty"><div class="spin"></div>กำลังตรวจ…</div></div>' : '') +
    '<div class="section-title">ทะเบียนผู้ใช้และสิทธิ์</div>' +
+   (isSysAdminUI() ? '<div id="usrSrcHost" class="note" style="margin-bottom:12px;font-size:12.8px">กำลังตรวจไฟล์ทะเบียนผู้ใช้…</div>' : '') +
    '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>อีเมล</th><th>ชื่อ</th>' +
    '<th>คณะ/หน่วยงานหลัก</th><th>หน่วยงานในคณะ</th><th>บทบาท</th><th>สถานะ</th><th></th></tr></thead><tbody>' +
    list.map(function(u, i){
      /* แถวของผู้ดูแล ต้องให้ผู้ดูแลระบบเป็นผู้แก้เท่านั้น หน้าจอจึงล็อกไว้ให้ตรงกับกติกาฝั่งเซิร์ฟเวอร์ */
      var locked = !isSysAdminUI() && ['admin','faculty_admin'].indexOf(u.role) >= 0;
+     var self = ME && String(u.email || '').toLowerCase() === String(ME.email || '').toLowerCase();
      return '<tr class="norow"><td class="id">' + esc(u.email) + '</td><td>' + esc(u.name || '') + '</td>' +
      '<td><select id="uf' + i + '">' + unitOptionsHtml(userFaculty(u)) + '</select></td>' +
      '<td><input id="uu' + i + '" value="' + esc(userOrgUnit(u) || '') + '" placeholder="หน่วยงานในคณะ"></td>' +
@@ -4425,11 +4429,32 @@ function renderUsers(list){
        : '<select id="ua' + i + '"><option value="1"' + (u.active ? ' selected' : '') + '>ใช้งาน</option>' +
          '<option value="0"' + (!u.active ? ' selected' : '') + '>ระงับ</option></select>') + '</td>' +
      '<td>' + (locked ? '<span class="hint">ผู้ดูแลระบบเท่านั้น</span>'
-       : '<button class="btn btn-sm btn-p" onclick="saveUser(' + i + ')">บันทึก</button>') + '</td></tr>';
+       : '<div style="display:flex;gap:6px;flex-wrap:nowrap"><button class="btn btn-sm btn-p" onclick="saveUser(' + i + ')">บันทึก</button>' +
+         (self ? '' : '<button class="btn btn-sm" style="color:var(--danger);border-color:#F2C4BC" title="ลบรายชื่อออกจากทะเบียนผู้ใช้" onclick="deleteUser(' + i + ')">ลบ</button>') + '</div>') + '</td></tr>';
    }).join('') + '</tbody></table></div></div>';
   window.__USERS = list;
   renderReadiness();
-  if (isSysAdminUI()) renderHealth();
+  if (isSysAdminUI()) { renderHealth(); renderUsersSource(list.length); }
+}
+/* แสดงไฟล์และแท็บทะเบียนผู้ใช้ที่ระบบอ่านจริง (2.8.32) — ถ้ารายชื่อไม่ตรงกับไฟล์ที่เปิดดู ให้ตรวจที่นี่ก่อน */
+function renderUsersSource(n){
+  var host = document.getElementById('usrSrcHost');
+  if (!host) return;
+  srv('adminUsersSource', [], function(src){
+    host.innerHTML = 'ทะเบียนที่ระบบใช้อยู่: <b>' + esc(src.name) + '</b> · แท็บ <b>' + esc(src.sheet) + '</b> (gid ' + esc(String(src.gid)) + ')' +
+      ' · ' + esc(String(src.rows)) + ' แถว · แสดงในหน้านี้ ' + n + ' รายชื่อ' +
+      ' · <a href="' + esc(src.url) + '#gid=' + esc(String(src.gid)) + '" target="_blank" rel="noopener">เปิดไฟล์ทะเบียน</a>' +
+      '<br><span style="color:var(--steel)">ถ้ารายชื่อไม่ตรงกับไฟล์ที่ท่านเปิดอยู่ แสดงว่าเปิดคนละไฟล์หรือคนละแท็บ (ตั้งค่าจาก ' + esc(src.source) + ')</span>';
+  }, function(){ host.style.display = 'none'; });
+}
+function deleteUser(i){
+  var u = window.__USERS[i];
+  if (!u) return;
+  var label = (u.name ? u.name + ' (' + u.email + ')' : u.email);
+  if (!confirm('ลบ ' + label + ' ออกจากทะเบียนผู้ใช้?\n\nบัญชีนี้จะเข้าระบบไม่ได้จนกว่าจะลงทะเบียนใหม่ ' +
+               'รายงานอุบัติการณ์ที่เคยเขียนหรือดำเนินการไว้ยังอยู่ครบ\nการลบบันทึกไว้ในบันทึกการใช้งาน')) return;
+  busy(true, 'กำลังลบรายชื่อ…');
+  srv('adminDeleteUser', [u.email], function(list){ toast('ลบ ' + label + ' ออกจากทะเบียนแล้ว'); renderUsers(list); });
 }
 
 /* ---- ตรวจสุขภาพระบบหลัง Deploy: schema, ผู้ดูแลที่ใช้งานอยู่ และทริกเกอร์รายวัน ---- */

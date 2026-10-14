@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.31';
+var APP_VERSION = '2.8.32';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -2383,6 +2383,63 @@ function adminSaveUser_(p) {
     }
   }
   throw apiError_('NOT_FOUND', 'ไม่พบผู้ใช้ ' + p.email);
+}
+
+/* ---- ลบรายชื่อออกจากทะเบียนผู้ใช้ (รุ่น 2.8.32) ----
+   ใช้เมื่อรายชื่อในระบบไม่ตรงกับทะเบียนจริง เช่น ลาออก ย้ายหน่วยงาน หรือกรอกซ้ำ
+   ลบเฉพาะแถวในทะเบียนผู้ใช้ — รายงานอุบัติการณ์ที่บุคคลนั้นเคยเขียนหรือดำเนินการยังอยู่ครบในชีต Incidents
+   กติกาเดียวกับการแก้ไขสิทธิ์: ลบบัญชีตนเองไม่ได้ · ต้องเหลือผู้ดูแลระบบที่ใช้งานอยู่อย่างน้อย 1 บัญชี
+   ผู้ดูแลระดับคณะลบได้เฉพาะผู้ใช้ในคณะตนเองที่ไม่ใช่บัญชีผู้ดูแล */
+function adminDeleteUser_(p) {
+  var u = me_();
+  need_(u, 'userAdmin');
+  var targetEmail = String((p && p.email) || '').trim().toLowerCase();
+  if (!targetEmail) throw apiError_('VALIDATION_FAILED', 'ไม่ได้ระบุอีเมลผู้ใช้ที่จะลบ');
+  if (targetEmail === String(u.email).trim().toLowerCase())
+    throw apiError_('VALIDATION_FAILED', 'ลบบัญชีของตนเองไม่ได้');
+  var sh = sheet_('Users');
+  var rows = sh.getDataRange().getValues();
+  var head = rows[0], col = head.indexOf('email');
+  for (var i = rows.length - 1; i >= 1; i--) {
+    if (String(rows[i][col] || '').trim().toLowerCase() !== targetEmail) continue;
+    var old = {};
+    head.forEach(function (h, j) { old[h] = rows[i][j]; });
+    if (!isSystemAdmin_(u)) {
+      if (!sameFaculty_(old.faculty, u.faculty))
+        throw apiError_('FORBIDDEN', 'ลบได้เฉพาะผู้ใช้ในคณะ/หน่วยงานของตนเองเท่านั้น');
+      if (['admin','faculty_admin'].indexOf(String(old.role)) >= 0)
+        throw apiError_('FORBIDDEN', 'บัญชีผู้ดูแลต้องให้ผู้ดูแลระบบเป็นผู้ลบ');
+    }
+    var oldActive = old.active === true || String(old.active).toUpperCase() === 'TRUE';
+    if (String(old.role) === 'admin' && oldActive) {
+      var others = readAll_('Users').filter(function (x) {
+        return x.active && x.role === 'admin' && String(x.email).toLowerCase() !== targetEmail;
+      }).length;
+      if (!others) throw apiError_('VALIDATION_FAILED',
+        'บัญชีนี้เป็นผู้ดูแลระบบที่ใช้งานอยู่รายสุดท้าย กรุณากำหนดผู้ดูแลระบบสำรองก่อนจึงจะลบได้');
+    }
+    CURRENT_BEFORE_HASH = hashObject_(old);
+    sh.deleteRow(i + 1);
+    invalidate_('Users');
+    audit_(u, 'ลบผู้ใช้ออกจากทะเบียน', targetEmail,
+      'ชื่อ ' + String(old.name || '') + ' · บทบาท ' + String(old.role || '') + ' · ' + String(old.faculty || ''));
+    /* คนที่ถูกลบต้องไม่อยู่ในรายชื่อผู้เปิดไฟล์แนบใน Drive อีก */
+    scheduleAttachmentSync_();
+    return usersForAdmin_(u);
+  }
+  throw apiError_('NOT_FOUND', 'ไม่พบผู้ใช้ ' + targetEmail + ' ในทะเบียน (อาจถูกลบไปแล้ว)');
+}
+
+/* ---- ทะเบียนผู้ใช้ที่ระบบเชื่อมอยู่จริง (รุ่น 2.8.32) ----
+   รายชื่อบนหน้าจอไม่ตรงกับไฟล์ที่ผู้ดูแลเปิดดู มักเป็นเพราะเปิดคนละไฟล์ (ชื่อ NU-Incident-Users ซ้ำกันได้)
+   หรือคนละแท็บ จึงแสดงชื่อไฟล์ ลิงก์ และแท็บที่ระบบอ่านจริงให้ตรวจได้ทันที — เฉพาะผู้ดูแลระบบ */
+function adminUsersSource_() {
+  var u = me_();
+  need_(u, 'admin');
+  var ss = usersDb_(), sh = configuredUsersSheet_(ss);
+  var fromConfig = !!String(CONFIG.USERS_SS_ID || '').trim();
+  return { name:ss.getName(), url:ss.getUrl(), id:ss.getId(), sheet:sh.getName(), gid:sh.getSheetId(),
+           rows:Math.max(0, sh.getLastRow() - 1), source:fromConfig ? 'CONFIG.USERS_SS_ID' : 'Script Property USERS_SS_ID' };
 }
 
 /* ---- ตรวจความพร้อมของทะเบียนผู้ใช้ก่อนเปิดใช้ทั้งมหาวิทยาลัย ----

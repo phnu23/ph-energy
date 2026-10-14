@@ -48,6 +48,8 @@ var API_ACTIONS = {
   'report.facultyIndex':        { fn:reportFacultyIndex_,    method:'GET'  },
   'admin.user.list':            { fn:adminListUsers_,        method:'GET',   auditRead:'ดูทะเบียนผู้ใช้และสิทธิ์' },
   'admin.user.update':          { fn:adminSaveUser_,         method:'PATCH'},
+  'admin.user.delete':          { fn:adminDeleteUser_,       method:'PATCH'},
+  'admin.user.source':          { fn:adminUsersSource_,      method:'GET'  },
   'admin.readiness':            { fn:adminCheckUsers_,       method:'POST' },
   'admin.installTriggers':      { fn:adminInstallTriggers_,  method:'POST' },
   'admin.setupStorage':         { fn:adminSetupStorage_,     method:'POST' },
@@ -212,6 +214,7 @@ var API_PAYLOAD_FIELDS={
   'attachment.upload':['name','mime','data'], 'admin.user.list':[],
   'org.headcount.list':[], 'org.headcount.save':['rows'], 'report.facultyIndex':[],
   'admin.user.update':['email','name','position','faculty','orgUnit','unit','role','active'],
+  'admin.user.delete':['email'], 'admin.user.source':[],
   'admin.readiness':['officialUnits'], 'admin.installTriggers':[], 'admin.setupStorage':[],
   'admin.backup':[], 'admin.selfTest':[], 'export.log':['kind','count'], 'audit.list':['limit'], 'system.health':[]
 };
@@ -254,10 +257,11 @@ function normalizeActionArgs_(action, p) {
   switch (action) {
     case 'auth.config': case 'auth.diagnose': case 'auth.bootstrap': case 'admin.user.list': case 'system.health':
     case 'admin.installTriggers': case 'admin.setupStorage': case 'org.headcount.list': case 'report.facultyIndex':
-    case 'admin.backup': case 'admin.selfTest': return [];
+    case 'admin.backup': case 'admin.selfTest': case 'admin.user.source': return [];
     case 'org.headcount.save': return [p];
     case 'incident.list': return [p.since || ''];
-    case 'auth.register': case 'incident.create': case 'attachment.upload': case 'admin.user.update': return [p];
+    case 'auth.register': case 'incident.create': case 'attachment.upload': case 'admin.user.update':
+    case 'admin.user.delete': return [p];
     case 'incident.assess': return [requiredId_(p.incidentId), p.injuryAxis, p.damageBaht, p.damageAxis, p.daysOff,
       p.note === undefined ? '' : txt_(String(p.note), 1000)];
     case 'incident.transition': return [requiredId_(p.incidentId), requiredText_(p.to, 'to', 30), p.data || {}];
