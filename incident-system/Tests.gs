@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.32
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.33
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -881,7 +881,8 @@ function unitStructure_() {
     ok_(a.indexOf("r.status !== 'closed'") >= 0, 'ต้องแก้ผลการประเมินเรื่องที่ปิดแล้วไม่ได้');
     var s = String(advanceStatus_);
     ok_(s.indexOf('prevDone') >= 0, 'แก้มาตรการต้องคงสถานะแล้วเสร็จเดิม');
-    ok_(s.indexOf("x.doneAt>today_()") >= 0, 'วันแล้วเสร็จต้องไม่อยู่ในอนาคต');
+    ok_(s.indexOf("doneAt>today_()") >= 0, 'วันแล้วเสร็จต้องไม่อยู่ในอนาคต');
+    ok_(s.indexOf("redated") >= 0, 'การแก้วันที่แล้วเสร็จต้องถูกบันทึกในไทม์ไลน์');
     return ok_(s.indexOf('undone') >= 0, 'การยกเลิกสถานะแล้วเสร็จต้องถูกบันทึก');
   });
 

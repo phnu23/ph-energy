@@ -508,6 +508,8 @@ textarea{min-height:92px;resize:vertical}
 #monBody .ckline{margin:0 0 6px;cursor:pointer;line-height:1.55}
 #monBody .ckline input{width:18px;height:18px;margin-top:2px;flex:none}
 #monBody .ckline span{flex:1;min-width:0;overflow-wrap:anywhere}
+#monBody .mon-date{display:flex;align-items:center;gap:8px;margin:-2px 0 8px 36px;font-size:12.5px;color:var(--steel)}
+#monBody .mon-date input{width:auto;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface)}
 .ovl-box{max-width:640px}
 
 /* ---- ช่องตำแหน่งบนแผนที่ ---- */
@@ -1128,7 +1130,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.32";
+const CLIENT_VERSION="2.8.33";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -1229,7 +1231,10 @@ function accessNotice(){
 }
 const lv=n=>n?`<span class="lv lv${n}"><b>${n}</b> ${SEV[n].word}</span>`:`<span class="lv lv0">ยังไม่ประเมิน</span>`;
 const kindTag=k=>k==="near"?`<span class="kind near">เกือบเกิดอุบัติเหตุ</span>`:`<span class="kind acc">อุบัติเหตุ</span>`;
-function thDate(d){if(!d)return"—";const p=d.split("-");return p[2]+"/"+p[1]+"/"+(+p[0]+543)}
+/* วันที่ที่ไม่ใช่ YYYY-MM-DD (เช่น มาตรการเก่าที่กำหนดเสร็จเป็นข้อความ "พ.ค. 2569 (ประมาณการ)") แสดงตามที่บันทึกไว้
+   เดิมแยกด้วย "-" ตรง ๆ จึงขึ้นเป็น "undefined/... /NaN" (รุ่น 2.8.33) */
+function thDate(d){if(!d)return"—";d=String(d);if(!/^\d{4}-\d{2}-\d{2}/.test(d))return esc(d);const p=d.slice(0,10).split("-");return p[2]+"/"+p[1]+"/"+(+p[0]+543)}
+const isISODate=d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d||""));
 
 /* ========== 6. Navigation ========== */
 const PAGES={dash:["Dashboard ติดตามอุบัติการณ์","ติดตามสถานการณ์"],new:["เขียนรายงานอุบัติการณ์","New report"],list:["รายงานอุบัติการณ์","รายการและสถานะ"],
@@ -2869,14 +2874,17 @@ function stamp(v){
 /* ---------- ยืนยันข้อเท็จจริงโดยหัวหน้างาน / หัวหน้าภาควิชา ----------
    เป็นด่านแรกก่อนส่งให้หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมายประเมินระดับ กันข้อมูลผิดพลาดตั้งแต่ต้นทาง */
 /* ---------- ติดตามผลมาตรการรายข้อ ---------- */
-let MON_ROWS=[];
+let MON_ROWS=[],MON_MIN="";
 function renderMonRows(){
  const el=document.getElementById("monBody"); if(!el)return;
  el.innerHTML=MON_ROWS.map((x,i)=>`<tr>
   <td><label class="ckline" style="margin:0;padding:7px 9px;background:${x.done?"#E7F3EF":"var(--line-2)"};border-color:${x.done?"#CDE7DF":"var(--line)"}">
    <input type="checkbox" ${x.done?"checked":""} onchange="MON_ROWS[${i}].done=this.checked;renderMonRows()">
-   <span><b>${esc(x.m)}</b><br><small style="color:var(--steel)">${esc(x.who)} · กำหนด ${thDate(x.due)} ${dueTag(x)}</small>${
-    x.wasDone&&!x.done?`<br><small style="color:var(--crit,#B42318)">จะยกเลิกสถานะแล้วเสร็จของข้อนี้ — ระบบบันทึกไว้ในไทม์ไลน์และบันทึกร่องรอย</small>`:""}</span></label></td></tr>`).join("");
+   <span><b>${esc(x.m)}</b><br><small style="color:var(--steel)">${esc(x.who)} · กำหนด ${x.due?thDate(x.due):"ไม่ได้กำหนด"} ${dueTag(x)}</small>${
+    x.wasDone&&!x.done?`<br><small style="color:var(--crit,#B42318)">จะยกเลิกสถานะแล้วเสร็จของข้อนี้ — ระบบบันทึกไว้ในไทม์ไลน์และบันทึกร่องรอย</small>`:""}</span></label>
+   ${x.done?`<div class="mon-date"><span>วันที่ดำเนินการแล้วเสร็จ</span>
+    <input type="date" value="${esc(x.doneAt||localToday())}" max="${localToday()}"${MON_MIN?` min="${esc(MON_MIN)}"`:""}
+     onchange="MON_ROWS[${i}].doneAt=this.value;renderMonRows()" aria-label="วันที่ดำเนินการแล้วเสร็จ"><b style="color:var(--ink-2)">${thDate(x.doneAt||localToday())}</b></div>`:""}</td></tr>`).join("");
 }
 /* ---------- ข้อเสนอแนะจากคณะกรรมการสอบสวน ----------
    บันทึกได้หลังกำหนดมาตรการแล้วเท่านั้น เพราะเป็นความเห็นต่อมาตรการที่กำหนดไว้ */
@@ -2955,6 +2963,7 @@ function openMonitor(id){
  if(r.status!=="capa"&&r.status!=="monitoring")
   return toast("บันทึกผลการติดตามได้เฉพาะช่วงที่เรื่องอยู่ในขั้นติดตามมาตรการ");
  MON_ROWS=r.capa.map(x=>({...x,wasDone:!!x.done}));
+ MON_MIN=isISODate(r.date)?r.date:"";
  const round=monHistory(r).length+1;
  const left=r.capa.filter(x=>!x.done).length;
  ovlShell("ติดตามผลการดำเนินมาตรการ · ครั้งที่ "+round,
@@ -2974,6 +2983,14 @@ function submitMonitor(id){
  if(!note)return toast("กรุณาบันทึกผลการติดตาม");
  /* วันที่ตามเวลาเครื่อง ไม่ใช่ UTC — toISOString() ให้วันที่เมื่อวานสำหรับช่วง 00:00–06:59 น. ในประเทศไทย */
  const d=new Date(), today=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+ /* วันที่แล้วเสร็จผู้ติดตามระบุเองได้ (รุ่น 2.8.33) ค่าเริ่มต้นคือวันนี้ ต้องไม่เกินวันนี้และไม่ก่อนวันเกิดเหตุ */
+ for(const x of MON_ROWS){
+  if(!x.done)continue;
+  const v=x.doneAt||today;
+  if(!isISODate(v))return toast("กรุณาระบุวันที่ดำเนินการแล้วเสร็จของ \""+x.m+"\"");
+  if(v>today)return toast("วันที่แล้วเสร็จของ \""+x.m+"\" ต้องไม่เกินวันนี้");
+  if(MON_MIN&&v<MON_MIN)return toast("วันที่แล้วเสร็จของ \""+x.m+"\" ต้องไม่ก่อนวันเกิดเหตุ");
+ }
  const capa=MON_ROWS.map(x=>({m:x.m,who:x.who,due:x.due,done:!!x.done,doneAt:x.done?(x.doneAt||today):""}));
  closeStepOvl(); applyStep(id,"monitoring",{capa:capa,monitorNote:note});
 }
@@ -3008,7 +3025,7 @@ function submitClose(id){
 /* ป้ายสถานะของมาตรการแต่ละข้อ ใช้ทั้งในฟอร์มและหน้ารายละเอียด */
 function dueTag(x){
  if(x.done)return `<span class="duetag ok">เสร็จแล้ว${x.doneAt?" "+thDate(x.doneAt):""}</span>`;
- if(!x.due)return "";
+ if(!isISODate(x.due))return "";
  const today=localToday();
  if(x.due<today){
   const d=Math.round((new Date(today)-new Date(x.due))/86400000);

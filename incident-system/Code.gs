@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.32';
+var APP_VERSION = '2.8.33';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1937,24 +1937,30 @@ function advanceStatus_(id, to, payload) {
       return x;
     });
   }
-  var undone = [];
+  var undone = [], redated = [];
   if(to==='monitoring') {
     p.monitorNote=requiredNote_(p.monitorNote,'monitorNote',2000);
-    var monitored=normalizeCapa_(p.capa);
-    if(!Array.isArray(r.capa)||monitored.length!==r.capa.length)
+    /* รุ่น 2.8.33 — เนื้อหามาตรการ (m/who/due) ใช้ค่าที่เก็บไว้ในชีตเสมอ รับจากหน้าจอเฉพาะ done และ doneAt
+       เดิมตรวจ due ด้วย validDate_ มาตรการเก่าที่กำหนดเสร็จเป็นข้อความ (เช่น "พ.ค. 2569 (ประมาณการ)") หรือเว้นว่าง
+       จึงบันทึกผลการติดตามไม่ได้เลย และผู้ติดตามระบุวันที่แล้วเสร็จจริงเองไม่ได้ (ระบบใส่วันที่กดบันทึกให้) */
+    if(!Array.isArray(p.capa)||!Array.isArray(r.capa)||p.capa.length!==r.capa.length)
       throw apiError_('VALIDATION_FAILED','รายการติดตามต้องตรงกับมาตรการที่กำหนดไว้');
-    monitored.forEach(function(x,i){
-      if(x.m!==String(r.capa[i].m||'')||x.who!==String(r.capa[i].who||'')||x.due!==String(r.capa[i].due||''))
+    var same=function(a,b){return String(a==null?'':a).trim()===String(b==null?'':b).trim();};
+    var monitored=p.capa.map(function(x,i){
+      var base=r.capa[i]||{};
+      if(!x||typeof x!=='object'||!same(x.m,base.m)||!same(x.who,base.who)||!same(x.due,base.due))
         throw apiError_('VALIDATION_FAILED','ห้ามแก้ไขเนื้อหามาตรการในขั้นติดตาม กรุณากลับไปแก้ในขั้นกำหนดมาตรการ');
-      /* วันแล้วเสร็จ: ข้อที่เสร็จอยู่แล้วคงวันเดิม (หน้าจอส่งวันใหม่มาก็ไม่ทับ)
-         ข้อที่เพิ่งเสร็จรอบนี้ต้องไม่อยู่ในอนาคต และไม่ก่อนวันเกิดเหตุ */
-      if(x.done&&r.capa[i].done&&r.capa[i].doneAt) x.doneAt=String(r.capa[i].doneAt);
-      else if(x.done) {
-        if(x.doneAt>today_()) throw apiError_('VALIDATION_FAILED','วันที่ดำเนินการแล้วเสร็จของ "'+x.m+'" ต้องไม่เกินวันนี้');
-        if(r.date&&x.doneAt<String(r.date)) throw apiError_('VALIDATION_FAILED','วันที่ดำเนินการแล้วเสร็จของ "'+x.m+'" ต้องไม่ก่อนวันเกิดเหตุ');
+      var done=!!x.done, doneAt='';
+      if(done){
+        var given=String(x.doneAt||'').trim();
+        doneAt=given?validDate_(given,'วันที่ดำเนินการแล้วเสร็จของ "'+base.m+'"'):(base.done&&base.doneAt?String(base.doneAt):today_());
+        if(doneAt>today_()) throw apiError_('VALIDATION_FAILED','วันที่ดำเนินการแล้วเสร็จของ "'+base.m+'" ต้องไม่เกินวันนี้');
+        if(r.date&&doneAt<String(r.date)) throw apiError_('VALIDATION_FAILED','วันที่ดำเนินการแล้วเสร็จของ "'+base.m+'" ต้องไม่ก่อนวันเกิดเหตุ');
+        if(base.done&&base.doneAt&&String(base.doneAt)!==doneAt) redated.push(base.m);
       }
       /* ยกเลิกสถานะแล้วเสร็จได้ (กรณีติ๊กผิดหรือมาตรการกลับมาใช้ไม่ได้) แต่ต้องปรากฏในไทม์ไลน์และ Audit เสมอ */
-      if(!x.done&&r.capa[i].done) undone.push(x.m);
+      if(!done&&base.done) undone.push(base.m);
+      return {m:String(base.m||''),who:String(base.who||''),due:String(base.due||''),done:done,doneAt:doneAt};
     });
     p.capa=monitored;
   }
@@ -1990,6 +1996,7 @@ function advanceStatus_(id, to, payload) {
     monitoring   :'ติดตามผลการดำเนินมาตรการ ครั้งที่ ' + monitorRound + ' — เสร็จแล้ว ' +
                   nCapa.filter(function (c) { return c.done; }).length + ' จาก ' + nCapa.length + ' รายการ' +
                   (undone.length ? ' · ยกเลิกสถานะแล้วเสร็จ: ' + undone.join(', ') : '') +
+                  (redated.length ? ' · แก้วันที่แล้วเสร็จ: ' + redated.join(', ') : '') +
                   (p.monitorNote ? ' · ' + p.monitorNote : ''),
     reviewed     :(u.role === 'dean'
                     ? 'คณบดี / ผู้อำนวยการกอง ตรวจสอบผลการติดตามมาตรการแทนรองคณบดี (กำกับดูแล)'
