@@ -1130,7 +1130,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.34";
+const CLIENT_VERSION="2.8.35";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -4421,6 +4421,8 @@ function assignableRoleKeys(){
   return isSysAdminUI() ? ROLE_KEYS : ROLE_KEYS.filter(function(k){ return FACULTY_ADMIN_ASSIGNABLE.indexOf(k) >= 0; });
 }
 function renderUsers(list){
+  /* แถวที่อีเมลซ้ำกับแถวก่อนหน้า (ระบบใช้แถวแรก) — ดู renderUsers ด้านล่าง */
+  (function(){ var seen = {}; list.forEach(function(u){ var k = String(u.email || '').toLowerCase(); u.__dup = !!seen[k]; seen[k] = 1; }); })();
   document.getElementById('view').innerHTML =
    '<div class="note" style="margin-bottom:16px">กำหนดบทบาทให้ตรงกับหน้าที่ในตารางระดับความรุนแรง ' +
    'ผู้ใช้ที่ลงทะเบียนเองจะได้สิทธิ์ผู้รายงานก่อนเสมอ' +
@@ -4434,6 +4436,14 @@ function renderUsers(list){
    '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>อีเมล</th><th>ชื่อ</th>' +
    '<th>คณะ/หน่วยงานหลัก</th><th>หน่วยงานในคณะ</th><th>บทบาท</th><th>สถานะ</th><th></th></tr></thead><tbody>' +
    list.map(function(u, i){
+     /* อีเมลซ้ำ (2.8.35): ระบบใช้สิทธิ์จากแถวแรกเสมอ แถวถัดไปที่อีเมลเดียวกันไม่มีผล
+        เดิมแสดงทุกแถวให้แก้ได้ แต่การกดบันทึกที่แถวซ้ำไปแก้แถวแรกแทน ผู้ดูแลจึงเห็นว่าค่าที่แก้ "ไม่เข้าไฟล์"
+        แถวซ้ำจึงแสดงเป็นอ่านอย่างเดียว มีเฉพาะปุ่มลบ (ลบจากแถวล่างสุดก่อน = ลบแถวซ้ำ ไม่แตะแถวที่ใช้งานจริง) */
+     if (u.__dup) return '<tr class="norow" style="background:#FBF2DC"><td class="id">' + esc(u.email) + '</td><td>' + esc(u.name || '') + '</td>' +
+       '<td colspan="4"><span class="chip crit">อีเมลซ้ำ</span> <span style="font-size:12.5px;color:var(--steel)">แถวนี้ไม่มีผล ระบบใช้สิทธิ์จากแถวแรกของอีเมลนี้ · บทบาทในแถวนี้: ' +
+       esc((ROLES[u.role] && ROLES[u.role].name) || u.role || '—') + ' · ควรลบแถวนี้ออก</span></td>' +
+       '<td>' + (isSysAdminUI() || ['admin','faculty_admin'].indexOf(u.role) < 0
+         ? '<button class="btn btn-sm" style="color:var(--danger);border-color:#F2C4BC" onclick="deleteUser(' + i + ')">ลบแถวซ้ำ</button>' : '') + '</td></tr>';
      /* แถวของผู้ดูแล ต้องให้ผู้ดูแลระบบเป็นผู้แก้เท่านั้น หน้าจอจึงล็อกไว้ให้ตรงกับกติกาฝั่งเซิร์ฟเวอร์ */
      var locked = !isSysAdminUI() && ['admin','faculty_admin'].indexOf(u.role) >= 0;
      var self = ME && String(u.email || '').toLowerCase() === String(ME.email || '').toLowerCase();
@@ -4470,6 +4480,13 @@ function deleteUser(i){
   var u = window.__USERS[i];
   if (!u) return;
   var label = (u.name ? u.name + ' (' + u.email + ')' : u.email);
+  if (u.__dup) {
+    if (!confirm('ลบแถวซ้ำของ ' + label + '?\n\nบัญชีนี้ยังใช้งานได้ตามแถวแรกของอีเมลนี้ (สิทธิ์ไม่เปลี่ยน)')) return;
+    busy(true, 'กำลังลบแถวซ้ำ…');
+    return srv('adminDeleteUser', [u.email], function(list){ toast('ลบแถวซ้ำของ ' + label + ' แล้ว'); renderUsers(list); });
+  }
+  var copies = window.__USERS.filter(function(x){ return String(x.email).toLowerCase() === String(u.email).toLowerCase(); }).length;
+  if (copies > 1) return toast('อีเมลนี้มีแถวซ้ำ กรุณาลบแถวซ้ำ (แถวสีเหลือง) ก่อน แล้วจึงลบบัญชี');
   if (!confirm('ลบ ' + label + ' ออกจากทะเบียนผู้ใช้?\n\nบัญชีนี้จะเข้าระบบไม่ได้จนกว่าจะลงทะเบียนใหม่ ' +
                'รายงานอุบัติการณ์ที่เคยเขียนหรือดำเนินการไว้ยังอยู่ครบ\nการลบบันทึกไว้ในบันทึกการใช้งาน')) return;
   busy(true, 'กำลังลบรายชื่อ…');

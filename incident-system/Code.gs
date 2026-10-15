@@ -129,7 +129,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.34';
+var APP_VERSION = '2.8.35';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -2418,7 +2418,9 @@ function adminDeleteUser_(p) {
         throw apiError_('FORBIDDEN', 'บัญชีผู้ดูแลต้องให้ผู้ดูแลระบบเป็นผู้ลบ');
     }
     var oldActive = old.active === true || String(old.active).toUpperCase() === 'TRUE';
-    if (String(old.role) === 'admin' && oldActive) {
+    /* อีเมลซ้ำหลายแถว: การลบแถวล่างสุดคือการลบสำเนาที่ไม่มีผล บัญชียังอยู่ จึงไม่ต้องตรวจผู้ดูแลรายสุดท้าย */
+    var copies = rows.filter(function (row, k) { return k > 0 && String(row[col] || '').trim().toLowerCase() === targetEmail; }).length;
+    if (copies < 2 && String(old.role) === 'admin' && oldActive) {
       var others = readAll_('Users').filter(function (x) {
         return x.active && x.role === 'admin' && String(x.email).toLowerCase() !== targetEmail;
       }).length;
