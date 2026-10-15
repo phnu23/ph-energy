@@ -1130,7 +1130,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.33";
+const CLIENT_VERSION="2.8.34";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -3321,14 +3321,15 @@ function capaRowHtml(i,row){
  return `<tr>
   <td><input type="text" value="${(esc(row.m)||"").replace(RE_QUOT,QUOT)}" placeholder="มาตรการที่จะดำเนินการ" oninput="CAPA_ROWS[${i}].m=this.value"></td>
   <td><input type="text" value="${(esc(row.who)||"").replace(RE_QUOT,QUOT)}" placeholder="ผู้รับผิดชอบ" oninput="CAPA_ROWS[${i}].who=this.value"></td>
-  <td><input type="date" value="${row.due||""}" oninput="CAPA_ROWS[${i}].due=this.value"></td>
+  <td><input type="date" value="${isISODate(row.due)?row.due:""}" oninput="CAPA_ROWS[${i}].due=this.value">${
+   row.oldDue&&!isISODate(row.due)?`<small style="display:block;color:var(--L4);margin-top:4px">เดิม: ${esc(row.oldDue)} — กรุณาเลือกวันที่</small>`:""}</td>
   <td><button class="btn btn-sm" onclick="rmCapaRow(${i})" aria-label="ลบรายการ">×</button></td></tr>`;
 }
 function renderCapaRows(){
  const el=document.getElementById("capaBody"); if(!el)return;
  el.innerHTML=CAPA_ROWS.map((r,i)=>capaRowHtml(i,r)).join("");
 }
-function addCapaRow(){CAPA_ROWS.push({m:"",who:"",due:addD(new Date().toISOString().slice(0,10),30)});renderCapaRows()}
+function addCapaRow(){CAPA_ROWS.push({m:"",who:"",due:addD(localToday(),30)});renderCapaRows()}
 function rmCapaRow(i){CAPA_ROWS.splice(i,1);renderCapaRows()}
 
 function openInvestigate(id){
@@ -3363,7 +3364,8 @@ function openCapa(id){
  if(r.status!=="investigating"&&r.status!=="capa")
   return toast("แก้ไขมาตรการได้เฉพาะก่อนเริ่มติดตามผลการดำเนินมาตรการ");
  const editing=r.status==="capa";
- CAPA_ROWS=(r.capa&&r.capa.length)?r.capa.map(x=>({...x})):[{m:"",who:"",due:addD(new Date().toISOString().slice(0,10),30)}];
+ /* กำหนดเสร็จรุ่นเก่าที่เป็นข้อความ (ไม่ใช่วันที่) ต้องเลือกวันใหม่ก่อนบันทึก มิฉะนั้นเซิร์ฟเวอร์ปฏิเสธด้วยข้อความรูปแบบวันที่ (2.8.34) */
+ CAPA_ROWS=(r.capa&&r.capa.length)?r.capa.map(x=>isISODate(x.due)?({...x}):({...x,oldDue:x.due||"",due:""})):[{m:"",who:"",due:addD(localToday(),30)}];
  ovlShell(editing?"แก้ไขมาตรการแก้ไขและป้องกัน":"กำหนดมาตรการแก้ไขและป้องกันไม่ให้เกิดซ้ำ",
   "ระบุมาตรการ ผู้รับผิดชอบ และวันแล้วเสร็จของแต่ละรายการ ระบบจะใช้วันแล้วเสร็จนี้ติดตามและแจ้งเตือนเมื่อเกินกำหนด",
   `<div class="tbl-wrap"><table class="capa-tbl"><thead><tr>
@@ -3378,7 +3380,7 @@ function submitCapa(id){
  const rows=CAPA_ROWS.filter(x=>(x.m||"").trim());
  if(!rows.length)return toast("กรุณากรอกมาตรการอย่างน้อยหนึ่งรายการ");
  if(rows.some(x=>!(x.who||"").trim()))return toast("กรุณาระบุผู้รับผิดชอบให้ครบทุกมาตรการ");
- if(rows.some(x=>!x.due))return toast("กรุณาระบุวันแล้วเสร็จให้ครบทุกมาตรการ");
+ if(rows.some(x=>!isISODate(x.due)))return toast("กรุณาเลือกวันแล้วเสร็จให้ครบทุกมาตรการ");
  closeStepOvl(); applyStep(id,"capa",{capa:rows.map(x=>({m:x.m.trim(),who:x.who.trim(),due:x.due}))});
 }
 
