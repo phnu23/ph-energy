@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.35
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.36
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -1073,6 +1073,15 @@ function runInstallCheck() {
   });
 
   /* รุ่น 2.8.28 — วางไฟล์ไม่ครบเป็นสาเหตุอันดับแรกที่หน้าจอไม่เปลี่ยนหลัง Deploy */
+  /* รุ่น 2.8.36 — ลิงก์ในอีเมลต้องชี้ไปเว็บแอปที่ผู้ใช้เปิดจริง ไม่ใช่ Deployment อื่น */
+  t_('ลิงก์ในอีเมลตั้ง URL เว็บแอปไว้แล้ว (APP_URL)', function () {
+    var p = String(PropertiesService.getScriptProperties().getProperty('APP_URL') || '').trim() || String(CONFIG.APP_URL || '').trim();
+    ok_(/^https:\/\/script\.google\.com\/.+\/exec$/.test(p),
+      'ยังไม่ได้ตั้ง APP_URL — อีเมลจะใช้ ' + (ScriptApp.getService().getUrl() || '(ไม่มี)') +
+      ' ซึ่งอาจเป็น Deployment อื่น · ตั้งที่ Project Settings → Script Properties: APP_URL = URL /exec ที่ผู้ใช้เปิด');
+    return p;
+  });
+
   t_('Index.html รุ่นเดียวกับ Code.gs', function () {
     if (typeof HtmlService === 'undefined' || !HtmlService.createHtmlOutputFromFile) return 'ข้าม (ไม่มี HtmlService)';
     var html = HtmlService.createHtmlOutputFromFile('Index').getContent();

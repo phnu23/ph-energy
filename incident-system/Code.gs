@@ -62,6 +62,10 @@ var CONFIG = {
   USERS_SHEET_ID : 0,
   USERS_SHEET_NAME: 'Users',
   USERS_DB_NAME  : 'NU-Incident-Users',
+  /* URL ของเว็บแอปที่ผู้ใช้เปิดจริง (ลงท้าย /exec) ใช้ทำลิงก์ "เปิดเรื่อง" ในอีเมลแจ้งเตือน (รุ่น 2.8.36)
+     ScriptApp.getService().getUrl() ในทริกเกอร์รายวันอาจคืน URL ของ Deployment อื่น (เช่น ตัวเก่าที่ยังไม่ได้ลบ)
+     ผู้รับอีเมลจึงถูกพาไปเปิดระบบรุ่นเก่า ตั้งค่าได้ที่นี่ หรือที่ Project Settings → Script Properties ชื่อ APP_URL */
+  APP_URL        : '',
   /* OAuth 2.0 Client ID (ชนิด Web application) จาก Google Cloud Console ของโปรเจกต์นี้
      ใช้เฉพาะเมื่อหน้าเว็บ served นอก Apps Script (เช่น server ของมหาวิทยาลัย) และยืนยันตัวตนด้วย
      Google Identity Services แทน Session.getActiveUser() — ดู verifyIdToken_ และ doPost ใน Api.gs
@@ -129,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.35';
+var APP_VERSION = '2.8.36';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1100,6 +1104,16 @@ function today_() { return Utilities.formatDate(new Date(), Session.getScriptTim
 /* ============================================================
  *  3. ผู้ใช้และสิทธิ์
  * ============================================================ */
+/* URL สำหรับลิงก์ในอีเมล: Script Property APP_URL → CONFIG.APP_URL → URL ที่ Apps Script รายงาน (สำรอง) */
+function appUrl_() {
+  var p = '';
+  try { p = String(PropertiesService.getScriptProperties().getProperty('APP_URL') || '').trim(); } catch (e) {}
+  var c = String(CONFIG.APP_URL || '').trim();
+  var u = p || c;
+  if (/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)) return u;
+  try { return String(ScriptApp.getService().getUrl() || ''); } catch (e2) { return ''; }
+}
+
 function doGet(e) {
   /* ตัดสินสิทธิ์เปิด Dashboard ที่ฝั่งเซิร์ฟเวอร์ก่อนส่ง HTML
      เพื่อไม่ให้ผลขึ้นกับจังหวะโหลด google.script.run ในเบราว์เซอร์ */
@@ -3490,7 +3504,7 @@ function notify_(rec, actor, level) {
       'ตารางระดับความรุนแรง กำหนดให้แจ้งด้วยวาจาภายใน 1 ชั่วโมง และรายงานเป็นลายลักษณ์อักษรภายใน 24 ชั่วโมง',
       level >= 3 ? 'ระดับนี้ต้องรายงาน ' + SEV_UNI[level] : '',
       '',
-      'เปิดเรื่องนี้ในระบบ: ' + ScriptApp.getService().getUrl() + '?incident=' + encodeURIComponent(rec.id)
+      'เปิดเรื่องนี้ในระบบ: ' + appUrl_() + '?incident=' + encodeURIComponent(rec.id)
     ].join('\n');
 
     MailApp.sendEmail({
@@ -3520,7 +3534,8 @@ function installTriggers_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (['notifyOverdueCapa_','cleanupExpiredAttachments_','backupDatabase_','archiveAuditMonthly_','syncAttachmentAccess_','onUsersRegistryEdit_'].indexOf(t.getHandlerFunction())>=0) ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('notifyOverdueCapa_').timeBased().everyDays(1).atHour(8).create();
+  /* nearMinute(0): ส่งช่วง 07:45–08:15 น. — ถ้าไม่ระบุ Google สุ่มนาทีในชั่วโมง 08:00–08:59 (รุ่น 2.8.36) */
+  ScriptApp.newTrigger('notifyOverdueCapa_').timeBased().everyDays(1).atHour(8).nearMinute(0).create();
   ScriptApp.newTrigger('cleanupExpiredAttachments_').timeBased().everyDays(1).atHour(2).create();
   ScriptApp.newTrigger('backupDatabase_').timeBased().everyDays(1).atHour(1).create();
   /* ย้ายบันทึกร่องรอยเก่าไปเก็บถาวรทุกวันที่ 1 เวลา 03:00 น. — หลังรอบสำรองข้อมูล 01:00 น.
@@ -3628,7 +3643,7 @@ function notifyOverdueCapa_() {
   var users = readAll_('Users').filter(function (u) { return u.active; });
   var byFaculty = {};
   rows.forEach(function (r) { var f = canonUnit_(r.faculty); (byFaculty[f] = byFaculty[f] || []).push(r); });
-  var appUrl = ScriptApp.getService().getUrl();
+  var appUrl = appUrl_();
 
   var sent = 0;
   Object.keys(byFaculty).forEach(function (fac) {
