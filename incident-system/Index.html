@@ -828,6 +828,14 @@ const facultyOf=r=>canonUnit(_t(r.faculty||r.Faculty||r.unit||r.Department))||"�
 const orgUnitOf=r=>_t(r.orgUnit||r.Unit||r.subUnit)||"ไม่ระบุหน่วยงาน";
 const userFaculty=u=>canonUnit(_t(u.faculty||u.Faculty||u.unit||u.Department));
 const userOrgUnit=u=>_t(u.orgUnit||u.Unit||u.subUnit);
+function normTime(v){
+ if(v===null||v===undefined||v==="")return "";
+ const s=String(v).trim();
+ if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)){const d=new Date(s);
+  if(!isNaN(d))return new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Bangkok",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(d.getTime()+30000));}
+ const m=s.match(/^(\d{1,2})[:.](\d{2})/);
+ return m?m[1].padStart(2,"0")+":"+m[2]:"";
+}
 function normalizeIncident(r){
  const out={...r};
  out.faculty=facultyOf(r);
@@ -847,6 +855,7 @@ function normalizeIncident(r){
  out.parts=arr(out.parts);
  out.files=arr(out.files);
  out.involved=arr(out.involved).filter(Boolean);
+ out.time=normTime(out.time);   /* เวลาที่ Sheets แปลงเป็นค่าเวลา (1899-12-30T…Z) → HH:mm (2.8.37) */
  out.causes=migrateCauses(arr(out.causes));   /* ชื่อสาเหตุรุ่นเก่าแปลงเป็น 4 หมวดปัจจุบัน (2.8.23) */
  out.capa=Array.isArray(out.capa)?out.capa:[];
  out.log=Array.isArray(out.log)?out.log:[];
@@ -1130,7 +1139,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.36";
+const CLIENT_VERSION="2.8.37";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -2748,7 +2757,7 @@ function pgDetail(){
      <dt>ประเภทการเกิด</dt><dd>${r.cats.map(esc).join(" · ")}</dd>
      <dt>คณะ/หน่วยงานที่เกิดเหตุ</dt><dd>${esc(r.unit)}<div style="font-size:12px;color:var(--steel)">${esc(unitGroup(r.unit))}</div></dd>
      <dt>หน่วยงานในคณะ</dt><dd>${esc(r.subUnit)||"—"}</dd>
-     <dt>วันเวลาที่เกิดเหตุ</dt><dd class="mono">${thDate(r.date)} เวลา ${r.time} น.</dd>
+     <dt>วันเวลาที่เกิดเหตุ</dt><dd class="mono">${thDate(r.date)}${r.time?` เวลา ${esc(r.time)} น.`:""}</dd>
      <dt>สถานที่</dt><dd>${esc(r.place)}${safeUrl(r.mapUrl)?` · <a href="${safeUrl(r.mapUrl)}" target="_blank" rel="noopener" class="maplink">เปิดใน Google Maps</a>`:""}</dd>
      <dt>อุบัติการณ์ที่พบ</dt><dd>${esc(r.detail)}</dd>
      <dt>กิจกรรมขณะเกิดเหตุ</dt><dd>${esc(r.activity)}${esc(r.course)?" · "+esc(r.course):""}</dd>
@@ -2867,8 +2876,10 @@ function nowTxt(){
 /* แปลงเวลาที่เก็บไว้เป็นข้อความไทยสำหรับแสดงผล รองรับทั้งรูปแบบใหม่และข้อมูลเดิม */
 function stamp(v){
  if(!v)return "";
+ /* ค่าที่คัดลอกมาจากชีตตอนคอลัมน์แคบ ("#####") หรือรูปแบบที่อ่านไม่ได้ ไม่ใช่วันเวลา → ถือว่ายังไม่มีข้อมูล (2.8.37) */
+ if(/^#+$/.test(String(v).trim()))return "";
  const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
- if(!m)return String(v);
+ if(!m)return esc(String(v));
  return thDate(m[1]+"-"+m[2]+"-"+m[3])+" "+m[4]+":"+m[5]+" น.";
 }
 /* ---------- ยืนยันข้อเท็จจริงโดยหัวหน้างาน / หัวหน้าภาควิชา ----------
@@ -3070,7 +3081,7 @@ function openConfirmFact(id){
   "โปรดตรวจสอบว่าข้อมูลที่ผู้รายงานบันทึกไว้ตรงกับข้อเท็จจริง หากมีข้อมูลคลาดเคลื่อนหรือเพิ่มเติม ให้ระบุไว้ในช่องด้านล่าง ระบบจะบันทึกไว้เป็นหลักฐานและส่งต่อให้หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมายประเมินระดับความรุนแรง",
   `<dl class="kv" style="margin-bottom:14px">
     <dt>เรื่อง</dt><dd>${esc(r.title)}</dd>
-    <dt>วันเวลา สถานที่</dt><dd>${thDate(r.date)} ${r.time} · ${esc(r.place)}</dd>
+    <dt>วันเวลา สถานที่</dt><dd>${thDate(r.date)} ${esc(r.time)} · ${esc(r.place)}</dd>
     <dt>ผู้รายงาน</dt><dd>${r.anon?"ไม่ระบุชื่อ":esc(r.reporter)}</dd>
     <dt>ลักษณะ</dt><dd>${r.kind==="near"?"เหตุการณ์เกือบเกิดอุบัติเหตุ":"อุบัติเหตุ"}</dd>
     <dt>ระดับเบื้องต้น</dt><dd>ระดับ ${r.suggestLevel} (${SEV[r.suggestLevel].word}) จากที่ผู้รายงานกรอก</dd>
@@ -3187,7 +3198,7 @@ function openCancel(id){
   "การยกเลิกทำแล้วย้อนกลับไม่ได้ หากต้องการรายงานใหม่ให้เขียนรายงานฉบับใหม่แทน",
   `<dl class="kv" style="margin-bottom:14px">
     <dt>เรื่อง</dt><dd>${esc(r.title)}</dd>
-    <dt>วันเวลา สถานที่</dt><dd>${thDate(r.date)} ${r.time} · ${esc(r.place)}</dd>
+    <dt>วันเวลา สถานที่</dt><dd>${thDate(r.date)} ${esc(r.time)} · ${esc(r.place)}</dd>
     <dt>ขั้นปัจจุบัน</dt><dd>${STATUS[r.status]?STATUS[r.status].label:r.status}</dd>
    </dl>
    <div class="fld"><label class="f req">เหตุผลที่ยกเลิก</label>

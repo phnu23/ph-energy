@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.36';
+var APP_VERSION = '2.8.37';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1019,6 +1019,7 @@ function hydrate_(o) {
      มิฉะนั้นหน้าจอจะส่ง expectedVersion ไม่ได้ แล้วถูกปฏิเสธทุกคำสั่งที่แก้ไขเรื่องเก่า */
   o.version = Number(o.version) || 1;
   ['date','meetDate'].forEach(function (k) { o[k] = fmtDate_(o[k]); });
+  o.time = fmtTime_(o.time);
   ['createdAt','updatedAt','ackAt','verbalAt','writtenAt','uniReportAt','cancelledAt']
     .forEach(function (k) { o[k] = fmtStamp_(o[k]); });
   return o;
@@ -1030,6 +1031,20 @@ function fmtDate_(v) {
     return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   }
   return String(v).slice(0, 10);
+}
+
+/* เวลาเกิดเหตุ "14:35" ถูก Sheets แปลงเป็นค่าเวลา (Date วันที่ 1899-12-30) อ่านกลับมาจึงแสดงเป็น
+   "1899-12-30T07:35:52.000Z" บนหน้าจอ (รุ่น 2.8.37) — แปลงกลับเป็น HH:mm ตามเขตเวลาของสคริปต์
+   ซึ่งตรงกับเขตเวลาที่ Sheets ใช้ตอนแปลง จึงได้เวลาเดิมที่ผู้รายงานกรอก */
+function fmtTime_(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  var tz = Session.getScriptTimeZone();
+  /* ปัดเป็นนาทีที่ใกล้ที่สุด: ค่าเวลาปี 1899 ใช้เวลาท้องถิ่นเดิมของกรุงเทพฯ (+06:42:04) จึงมีเศษวินาทีติดมา */
+  if (Object.prototype.toString.call(v) === '[object Date]') return Utilities.formatDate(new Date(v.getTime() + 30000), tz, 'HH:mm');
+  var s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) { var d = new Date(s); if (!isNaN(d)) return Utilities.formatDate(new Date(d.getTime() + 30000), tz, 'HH:mm'); }
+  var m = s.match(/^(\d{1,2})[:.](\d{2})/);
+  return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : s;
 }
 
 /* Google Sheets แปลงข้อความที่มีรูปแบบวันเวลาให้เป็น "ค่าวันที่" อัตโนมัติ
@@ -1054,6 +1069,8 @@ function dehydrate_(o, headers) {
     var v = o[h];
     if (JSON_FIELDS.indexOf(h) >= 0) return JSON.stringify(Array.isArray(v) ? v : []);
     if (v === undefined || v === null) return '';
+    /* เวลาเกิดเหตุเก็บเป็นข้อความ — ' นำหน้าบอก Sheets ไม่ให้แปลงเป็นค่าเวลา (อ่านกลับได้ "14:35" ตรงตัว) (2.8.37) */
+    if (h === 'time' && typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v)) return "'" + v;
     if (typeof v === 'string') return escFormula_(v);
     return v;
   });
