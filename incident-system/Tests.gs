@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.38
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.39
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -1073,6 +1073,21 @@ function runInstallCheck() {
   });
 
   /* รุ่น 2.8.28 — วางไฟล์ไม่ครบเป็นสาเหตุอันดับแรกที่หน้าจอไม่เปลี่ยนหลัง Deploy */
+  /* รุ่น 2.8.39 — โปรเจกต์อื่น (เช่น ระบบเดิมที่ยังมีทริกเกอร์) เขียนลงฐานข้อมูลเดียวกัน
+     ทำให้ห่วงโซ่บันทึกร่องรอยขาดซ้ำ ๆ และอีเมลส่งซ้ำ ตรวจจาก appVersion ในชีต Audit:
+     หลังจากรุ่นปัจจุบันเริ่มเขียนแล้ว ต้องไม่มีแถวของรุ่นอื่นตามมาอีก */
+  t_('ไม่มีโปรเจกต์อื่นเขียนฐานข้อมูลนี้', function () {
+    var rows = readAll_('Audit'), first = -1;
+    for (var i = 0; i < rows.length; i++) if (String(rows[i].appVersion) === APP_VERSION) { first = i; break; }
+    if (first < 0) return 'ยังไม่มีบันทึกของรุ่น ' + APP_VERSION;
+    var foreign = rows.slice(first).filter(function (x) { return x.appVersion && String(x.appVersion) !== APP_VERSION; });
+    var vers = foreign.map(function (x) { return String(x.appVersion); }).filter(function (v, k, a) { return a.indexOf(v) === k; });
+    ok_(!foreign.length, 'พบบันทึกของรุ่น ' + vers.join(', ') + ' จำนวน ' + foreign.length + ' รายการ หลังรุ่น ' + APP_VERSION +
+      ' เริ่มทำงาน (ล่าสุด ' + (foreign.length ? foreign[foreign.length - 1].t + ' · ' + foreign[foreign.length - 1].act : '') + ')' +
+      ' — มีโปรเจกต์ Apps Script อื่นใช้ฐานข้อมูลนี้อยู่ ให้ลบทริกเกอร์และ Archive Deployment ของโปรเจกต์นั้น');
+    return 'ทุกรายการหลังรุ่นนี้เริ่มทำงานมาจากโปรเจกต์นี้';
+  });
+
   /* รุ่น 2.8.38 — ทริกเกอร์อีเมลมาตรการเกินกำหนดต้องมีตัวเดียว มิฉะนั้นผู้รับได้อีเมลซ้ำ */
   t_('ทริกเกอร์อีเมลมาตรการเกินกำหนดมีตัวเดียว', function () {
     var n = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'notifyOverdueCapa_'; }).length;

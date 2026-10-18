@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.38';
+var APP_VERSION = '2.8.39';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -3234,6 +3234,7 @@ function auditBreakDetail_(sheetRow, okCount, kind, x, expectPrev) {
     return head + ' · ตัวเชื่อมไม่ตรง: แถวนี้ระบุ prevEntryHash เป็น ' + brief(x && x.prevEntryHash) +
            ' แต่ต้องเป็น ' + brief(expectPrev) +
            ' — เกิดจากมีการลบหรือแทรกแถวในชีต หรือชีตถูกล้างโดยที่ค่าอ้างอิงเดิมยังค้างอยู่' +
+           ' หรือมีโปรเจกต์ Apps Script อื่น (เช่น ระบบเดิม) ที่ใช้ฐานข้อมูลเดียวกันยังทำงานอยู่' +
            ' · แก้ด้วยการรัน repairAuditFromEditor() ใน Apps Script editor';
   }
   var born = PropertiesService.getScriptProperties().getProperty('AUDIT_KEY_CREATED') || '';
