@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.39';
+var APP_VERSION = '2.8.40';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -2989,6 +2989,21 @@ function auditTailHash_(sh) {
   if (col < 1) return '';            /* ชีตรุ่นเก่ายังไม่มีคอลัมน์นี้ ให้เริ่มโซ่ใหม่ */
   return String(sh.getRange(last, col).getValue() || '');
 }
+/* แถวท้ายที่อ่านได้ว่าง ทั้งที่ชีตมีรายการอยู่ (รุ่น 2.8.40)
+   เกิดจริงเมื่อหลายคำขอเขียน Audit ในวินาทีเดียวกัน (เช่น เปิดหน้าจัดการผู้ใช้ = ดูทะเบียน + ตรวจความพร้อม + สุขภาพระบบ พร้อมกัน)
+   คำขอที่อ่านชีตไปก่อนได้ lock อาจได้ค่าที่ค้างจากการอ่านรอบก่อน แถวใหม่จึงระบุ prevEntryHash ว่าง และห่วงโซ่ "ขาด" ทั้งที่ไม่มีใครแก้ชีต */
+function auditTailFresh_() {
+  try { SpreadsheetApp.flush(); } catch (e) {}
+  var sh = db_().getSheetByName('Audit');
+  if (!sh) return { rows:0, hash:'' };
+  var last = sh.getLastRow();
+  if (last < 2) return { rows:0, hash:'' };
+  var col = headers_(sh).indexOf('entryHash') + 1;
+  if (col < 1) return { rows:last - 1, hash:'' };
+  var from = Math.max(2, last - 9), vals = sh.getRange(from, col, last - from + 1, 1).getValues();
+  for (var i = vals.length - 1; i >= 0; i--) if (String(vals[i][0] || '')) return { rows:last - 1, hash:String(vals[i][0]), row:from + i };
+  return { rows:last - 1, hash:'' };
+}
 
 /* กุญแจ HMAC สร้างครั้งเดียวตลอดอายุระบบ บันทึกวันที่สร้างไว้เพื่อวินิจฉัยย้อนหลัง */
 function auditSecret_(props) {
@@ -3173,6 +3188,14 @@ function audit_(u, act, target, detail, outcome, errorCode) {
     var props=PropertiesService.getScriptProperties();
     var secret=auditSecret_(props);
     var tail=auditTailHash_(sheet_('Audit'));
+    var witness=props.getProperty('AUDIT_LAST_HASH');
+    /* อ่านซ้ำแบบสด เมื่อแถวท้ายไม่ตรงกับรายการล่าสุดที่ระบบเขียน (2.8.40) */
+    if(witness && tail!==witness){
+      var fresh=auditTailFresh_();
+      if(fresh.hash) tail=fresh.hash;
+      /* ชีตยังมีรายการแต่อ่านแถวท้ายไม่ได้ = ค่าค้างจากการอ่าน ไม่ใช่การลบ → ต่อจากรายการล่าสุดที่ระบบเขียน */
+      else if(fresh.rows>0) tail=witness;
+    }
     auditWitness_(props, tail);
     var entry={ t:now_(), who:(u && u.email) || '-', role:(u && u.role) || '-',
       act:auditCell_(act,200), target:auditCell_(target,200), detail:auditCell_(detail,1000), auditId:Utilities.getUuid(),
