@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.37
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.38
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -247,7 +247,7 @@ function unitHeadcount_() {
   t_('ผู้ปิดมาตรการ (สิทธิ์ monitor)', function () {
     var holders = Object.keys(ROLES).filter(function (r) { return ROLES[r].can.monitor; }).sort();
     eq_(holders, ['deputy_dean_sup','office_head'], 'บทบาทที่บันทึกผลการติดตาม/ปิดมาตรการได้');
-    return ok_(String(notifyOverdueCapa_).indexOf('audit_(') >= 0, 'อีเมลมาตรการเกินกำหนดต้องบันทึกร่องรอย');
+    return ok_((String(notifyOverdueCapa_) + String(notifyOverdueCapaRun_)).indexOf('audit_(') >= 0, 'อีเมลมาตรการเกินกำหนดต้องบันทึกร่องรอย');
   });
 
   /* กราฟเปรียบเทียบรายคณะคืนเฉพาะตัวเลขรวม เปิดให้ผู้บริหารที่ดูดัชนีได้และผู้ดูแลระบบ */
@@ -929,12 +929,12 @@ function unitStructure_() {
     var unknown = FACULTY_NOTIFY_ROLES.concat(UNIVERSITY_NOTIFY_ROLES, FALLBACK_NOTIFY_ROLES, OVERDUE_FACULTY_ROLES, OVERDUE_UNIVERSITY_ROLES).filter(function (r) { return !ROLES[r]; });
     ok_(unknown.length === 0, 'บทบาทที่ไม่มีในระบบ: ' + unknown.join(', '));
     ok_(String(notify_).indexOf('FACULTY_NOTIFY_ROLES') >= 0, 'notify_ ต้องใช้ FACULTY_NOTIFY_ROLES');
-    ok_(String(notifyOverdueCapa_).indexOf('OVERDUE_FACULTY_ROLES') >= 0, 'notifyOverdueCapa_ ต้องใช้ OVERDUE_FACULTY_ROLES');
+    ok_((String(notifyOverdueCapa_) + String(notifyOverdueCapaRun_)).indexOf('OVERDUE_FACULTY_ROLES') >= 0, 'notifyOverdueCapa_ ต้องใช้ OVERDUE_FACULTY_ROLES');
     /* รุ่น 2.8.15: อีเมลมาตรการเกินกำหนดส่งหัวหน้าสำนักงานฯ รองคณบดี (กำกับดูแล) คณบดี/ผอ.กอง และกองอาคารสถานที่ */
     eq_(OVERDUE_FACULTY_ROLES.slice().sort(), ['dean','deputy_dean_sup','office_head'], 'ผู้รับระดับคณะของอีเมลมาตรการเกินกำหนด');
     eq_(OVERDUE_UNIVERSITY_ROLES, ['facility'], 'ผู้รับระดับมหาวิทยาลัยของอีเมลมาตรการเกินกำหนด');
     ok_(FALLBACK_NOTIFY_ROLES.every(function (r) { return ROLES[r]; }), 'ผู้รับสำรองต้องเป็นบทบาทที่มีอยู่');
-    return ok_([notify_, notifyOverdueCapa_].every(function (f) { return String(f).indexOf('FALLBACK_NOTIFY_ROLES') >= 0; }),
+    return ok_([notify_, notifyOverdueCapaRun_].every(function (f) { return String(f).indexOf('FALLBACK_NOTIFY_ROLES') >= 0; }),
       'ทั้งสองฟังก์ชันต้องใช้ผู้รับสำรองชุดเดียวกัน');
   });
 
@@ -944,7 +944,7 @@ function unitStructure_() {
     var s = SENSITIVE_CATS[1];
     ok_(mailTitle_({ title:'ชื่อจริง', cats:[' ' + s] }).indexOf('ชื่อจริง') < 0, 'ช่องว่างนำหน้าต้องไม่หลุดการปิดบัง');
     eq_(mailTitle_({ title:'ลื่นล้ม', cats:['ภัยธรรมชาติ'] }), 'ลื่นล้ม', 'เรื่องทั่วไปต้องเห็นชื่อ');
-    var src = String(notifyOverdueCapa_);
+    var src = (String(notifyOverdueCapa_) + String(notifyOverdueCapaRun_));
     ok_(src.indexOf('isSensitive_(r.cats)') >= 0, 'notifyOverdueCapa_ ต้องแยกเรื่องอ่อนไหว');
     return ok_(src.indexOf("r.id + ' — ' + r.title") < 0, 'ยังมีการใส่ r.title ตรง ๆ ในอีเมล');
   });
@@ -1073,6 +1073,13 @@ function runInstallCheck() {
   });
 
   /* รุ่น 2.8.28 — วางไฟล์ไม่ครบเป็นสาเหตุอันดับแรกที่หน้าจอไม่เปลี่ยนหลัง Deploy */
+  /* รุ่น 2.8.38 — ทริกเกอร์อีเมลมาตรการเกินกำหนดต้องมีตัวเดียว มิฉะนั้นผู้รับได้อีเมลซ้ำ */
+  t_('ทริกเกอร์อีเมลมาตรการเกินกำหนดมีตัวเดียว', function () {
+    var n = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'notifyOverdueCapa_'; }).length;
+    ok_(n === 1, 'พบ ' + n + ' ตัว · กด "ติดตั้ง/ซ่อมทริกเกอร์รายวัน" ในหน้าสุขภาพระบบ');
+    return '1 ตัวในโปรเจกต์นี้ · ถ้ายังได้อีเมลซ้ำ ให้ตรวจทริกเกอร์ในโปรเจกต์ระบบเดิม';
+  });
+
   /* รุ่น 2.8.36 — ลิงก์ในอีเมลต้องชี้ไปเว็บแอปที่ผู้ใช้เปิดจริง ไม่ใช่ Deployment อื่น */
   t_('ลิงก์ในอีเมลตั้ง URL เว็บแอปไว้แล้ว (APP_URL)', function () {
     var p = String(PropertiesService.getScriptProperties().getProperty('APP_URL') || '').trim() || String(CONFIG.APP_URL || '').trim();

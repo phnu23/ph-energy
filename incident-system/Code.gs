@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.37';
+var APP_VERSION = '2.8.38';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -3648,8 +3648,23 @@ function cleanupExpiredAttachments_() {
   return 'หมดอายุ '+removed+' ไฟล์';
 }
 
-function notifyOverdueCapa_() {
+function notifyOverdueCapa_(e) {
   var today = today_();
+  /* กันส่งซ้ำในวันเดียวกัน (รุ่น 2.8.38) — ทริกเกอร์ซ้อนกันหรือ Google เรียกซ้ำ ทำให้ผู้รับได้อีเมลเดียวกัน 2 ฉบับ
+     ใช้เฉพาะการเรียกจากทริกเกอร์ (มี e) การกด Run เองใน editor ยังส่งได้ตามปกติเพื่อทดสอบ
+     หมายเหตุ: ถ้ามีโปรเจกต์ Apps Script อื่น (เช่น ระบบเดิม) ที่ยังมีทริกเกอร์นี้ จะยังส่งซ้ำจากโปรเจกต์นั้น */
+  var lock = null, props = PropertiesService.getScriptProperties();
+  if (e) {
+    lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) return 'มีการส่งอีเมลมาตรการเกินกำหนดอยู่แล้ว';
+    if (props.getProperty('OVERDUE_SENT_DATE') === today) { lock.releaseLock(); return 'ส่งอีเมลของวันนี้ไปแล้ว'; }
+  }
+  try { return notifyOverdueCapaRun_(today); }
+  finally {
+    if (e) { props.setProperty('OVERDUE_SENT_DATE', today); try { lock.releaseLock(); } catch (ignore) {} }
+  }
+}
+function notifyOverdueCapaRun_(today) {
   var rows  = readAll_('Incidents').filter(function (r) {
     return r.status !== 'closed' && r.status !== CANCELLED && r.capa.some(function (c) {
       return !c.done && c.due && String(c.due).slice(0, 10) < today;
