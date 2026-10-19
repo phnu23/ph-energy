@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.40';
+var APP_VERSION = '2.8.41';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -3683,12 +3683,33 @@ function notifyOverdueCapa_(e) {
     if (!lock.tryLock(30000)) return 'มีการส่งอีเมลมาตรการเกินกำหนดอยู่แล้ว';
     if (props.getProperty('OVERDUE_SENT_DATE') === today) { lock.releaseLock(); return 'ส่งอีเมลของวันนี้ไปแล้ว'; }
   }
-  try { return notifyOverdueCapaRun_(today); }
+  try { return notifyOverdueCapaRun_(today, !e); }
   finally {
     if (e) { props.setProperty('OVERDUE_SENT_DATE', today); try { lock.releaseLock(); } catch (ignore) {} }
   }
 }
-function notifyOverdueCapaRun_(today) {
+/* รหัสท้ายของโปรเจกต์ Apps Script ที่ส่ง ใช้แยกว่าอีเมลซ้ำมาจากโปรเจกต์ใด (รุ่น 2.8.41) */
+function projectTag_() {
+  try { return '…' + String(ScriptApp.getScriptId()).slice(-6); } catch (e) { return '-'; }
+}
+/* คณะที่ได้อีเมลมาตรการเกินกำหนดของวันนี้แล้ว อ่านจาก 300 แถวท้ายของชีต Audit */
+function overdueSentFaculties_(today) {
+  var out = {};
+  try {
+    var sh = sheet_('Audit'), last = sh.getLastRow();
+    if (last < 2) return out;
+    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    var it = head.indexOf('t'), ia = head.indexOf('act'), ig = head.indexOf('target');
+    if (it < 0 || ia < 0 || ig < 0) return out;
+    var n = Math.min(300, last - 1);
+    sh.getRange(last - n + 1, 1, n, head.length).getValues().forEach(function (r) {
+      if (r[ia] === 'ส่งอีเมลมาตรการเกินกำหนด' && fmtStamp_(r[it]).slice(0, 10) === today) out[canonUnit_(r[ig])] = true;
+    });
+  } catch (e) { Logger.log('อ่านประวัติการส่งไม่สำเร็จ: ' + e.message); }
+  return out;
+}
+
+function notifyOverdueCapaRun_(today, manual) {
   var rows  = readAll_('Incidents').filter(function (r) {
     return r.status !== 'closed' && r.status !== CANCELLED && r.capa.some(function (c) {
       return !c.done && c.due && String(c.due).slice(0, 10) < today;
@@ -3701,8 +3722,12 @@ function notifyOverdueCapaRun_(today) {
   rows.forEach(function (r) { var f = canonUnit_(r.faculty); (byFaculty[f] = byFaculty[f] || []).push(r); });
   var appUrl = appUrl_();
 
-  var sent = 0;
+  var sent = 0, proj = projectTag_();
+  /* อ่านว่าวันนี้คณะใดได้อีเมลแล้วจากชีต Audit ในฐานข้อมูล (รุ่น 2.8.41) — ใช้ร่วมกันทุกโปรเจกต์ที่ผูกฐานข้อมูลนี้
+     ตัวกันใน Script Properties (2.8.38) เห็นเฉพาะโปรเจกต์ตัวเอง จึงกันโปรเจกต์อื่นที่ส่งซ้ำไม่ได้ */
+  var already = manual ? {} : overdueSentFaculties_(today);   /* กด Run เองใน editor ยังส่งได้เพื่อทดสอบ */
   Object.keys(byFaculty).forEach(function (fac) {
+    if (already[canonUnit_(fac)]) { Logger.log('ข้าม ' + fac + ' — ส่งอีเมลของวันนี้ไปแล้ว'); return; }
     var pick = users.filter(function (u) {
       if (OVERDUE_FACULTY_ROLES.indexOf(u.role) >= 0) return sameFaculty_(u.faculty, fac);
       return OVERDUE_UNIVERSITY_ROLES.indexOf(u.role) >= 0;
@@ -3731,14 +3756,15 @@ function notifyOverdueCapaRun_(today) {
       MailApp.sendEmail({
         to: to.join(','),
         subject: '[' + CONFIG.SYSTEM_NAME + '] มาตรการแก้ไขเกินกำหนด ' + byFaculty[fac].length + ' เรื่อง — ' + fac,
-        body: ['มาตรการแก้ไขและป้องกันต่อไปนี้เลยกำหนดแล้วเสร็จแล้ว', '', lines, '',
+        body: ['มาตรการแก้ไขและป้องกันต่อไปนี้เลยวันกำหนดแล้วเสร็จ และยังไม่ได้บันทึกว่าดำเนินการแล้ว', '', lines, '',
                'กรุณาติดตามกับผู้รับผิดชอบ แล้วให้หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย หรือรองคณบดี (กำกับดูแล)',
                'บันทึกผลการติดตามและติ๊กมาตรการที่แล้วเสร็จในระบบ (ปุ่ม "บันทึกผลการติดตามเพิ่มเติม" ในหน้ารายละเอียด)', '',
-               'เปิดระบบ: ' + appUrl].join('\n')
+               'เปิดระบบ: ' + appUrl, '',
+               '— ส่งอัตโนมัติจากระบบรุ่น ' + APP_VERSION + ' · โปรเจกต์ ' + proj].join('\n')
       });
       sent++;
       try { audit_(SYSTEM_ACTOR, 'ส่งอีเมลมาตรการเกินกำหนด', fac,
-        byFaculty[fac].length + ' เรื่อง · ผู้รับ ' + to.length + ' คน'); } catch (ignore) {}
+        byFaculty[fac].length + ' เรื่อง · ผู้รับ ' + to.length + ' คน · โปรเจกต์ ' + proj); } catch (ignore) {}
     } catch (e) {
       Logger.log('ส่งอีเมลเตือนไม่สำเร็จ: ' + e.message);
       try { audit_(SYSTEM_ACTOR, 'ส่งอีเมลมาตรการเกินกำหนดไม่สำเร็จ', fac,
