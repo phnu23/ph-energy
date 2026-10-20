@@ -206,7 +206,7 @@ function validateApiRequest_(req) {
 
 var API_PAYLOAD_FIELDS={
   'auth.config':[], 'auth.diagnose':[], 'auth.bootstrap':[], 'auth.register':['name','position','unit','faculty','orgUnit'], 'incident.list':['since'],
-  'incident.create':['title','kind','cats','unit','subUnit','mapUrl','date','time','place','detail','activity','course','injuryAxis','damageBaht','parts','treat','daysOff','assets','firstAid','involved','files','anon'],
+  'incident.create':['title','kind','cats','unit','subUnit','mapUrl','date','time','place','detail','activity','course','injuryAxis','damageBaht','parts','treat','daysOff','assets','firstAid','involved','files','anon','verbalAt'],
   'incident.assess':['incidentId','injuryAxis','damageBaht','damageAxis','daysOff','note'],
   'incident.transition':['incidentId','to','data'], 'incident.suggest':['incidentId','note','kind'],
   'incident.reportUniversity':['incidentId'], 'incident.cancel':['incidentId','note'],
@@ -222,7 +222,7 @@ var API_PAYLOAD_FIELDS={
    การปล่อยให้แนบมากับ incident.transition ได้ ทำให้บทบาทที่ไม่มีสิทธิ์นั้นเขียนทับข้อเสนอแนะได้
    deputyNote ไม่เคยอยู่ในรายการนี้อยู่แล้ว ทั้งสองช่องจึงเข้าทางเดียวกันแล้ว
    การผูกช่องที่เหลือไว้กับขั้นของมันอยู่ที่ STEP_FIELDS ใน advanceStatus_ */
-var TRANSITION_FIELDS=['confirmNote','meetDate','meetPlace','causes','investNote','capa','monitorNote','reviewNote','reviewBySub','ackNote','closeNote'];
+var TRANSITION_FIELDS=['confirmNote','verbalAt','meetDate','meetPlace','causes','investNote','capa','monitorNote','reviewNote','reviewBySub','ackNote','closeNote'];
 function validatePayloadShape_(action,p){
   var allow=own_(API_PAYLOAD_FIELDS,action)?API_PAYLOAD_FIELDS[action]:[];
   var extra=Object.keys(p).filter(function(k){return allow.indexOf(k)<0;});

@@ -231,7 +231,7 @@ td.id{font-family:var(--font-mono);font-size:12px;color:var(--steel)}
 label.f{display:block;font-size:12.5px;font-weight:600;margin-bottom:5px;color:var(--ink-2)}
 label.f span{font-weight:400;color:var(--steel-2)}
 .req::after{content:" *";color:var(--saed)}
-input[type=text],input[type=date],input[type=time],input[type=number],input[type=search],select,textarea{
+input[type=text],input[type=date],input[type=time],input[type=datetime-local],input[type=number],input[type=search],select,textarea{
   width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 input:hover,select:hover,textarea:hover{border-color:var(--steel-2)}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--saed);box-shadow:0 0 0 3px rgba(228,97,15,.13)}
@@ -278,6 +278,7 @@ textarea{min-height:92px;resize:vertical}
 .clock div{flex:1;min-width:110px;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .clock b{display:block;font-size:10.5px;color:var(--steel-2);font-family:var(--font-mono);letter-spacing:.06em}
 .clock span{font-size:13px;font-weight:600}
+.clock small{display:block;font-size:11.5px;color:var(--steel);margin-top:2px;line-height:1.45}
 .clock div.late{border-color:#F2C9C1;background:#FCEBE8}
 .clock div.late span{color:#8E1C1C}
 .clock div.ok{border-color:#CDE7DF;background:#F3F9F7}
@@ -1139,7 +1140,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.44";
+const CLIENT_VERSION="2.8.45";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -2656,8 +2657,8 @@ function chain(level,r,preview){
   return `<div class="spine-step ${cls}"><div class="spine-node">${x.n}</div>
    <div class="spine-body"><b>${esc(x.t)}</b><small>${x.s}</small></div></div>`}).join("")}</div>
  <div class="clock" style="margin-top:14px">
-  <div><b>แจ้งด้วยวาจา</b><span>ภายใน 1 ชั่วโมง</span></div>
-  <div><b>ลายลักษณ์อักษร</b><span>${s.writtenTxt}</span></div>
+  <div><b>แจ้งด้วยวาจา</b><span>ภายใน 1 ชั่วโมง</span><small>ระบุเวลาที่แจ้งในขั้นที่ 2</small></div>
+  <div><b>ลายลักษณ์อักษร</b><span>${s.writtenTxt}</span><small>บันทึกเมื่อกดส่งรายงาน</small></div>
  </div>`;
 }
 
@@ -2858,8 +2859,11 @@ function pgDetail(){
     <div class="card-b">${chain(L||r.suggestLevel,r,false)}</div></div>
    <div class="card"><div class="card-h"><h3>กำหนดเวลาตามตารางระดับความรุนแรง</h3></div><div class="card-b">
     <div class="clock" style="flex-direction:column">
-     <div class="${r.verbalAt?"ok":"late"}"><b>แจ้งด้วยวาจา ภายใน 1 ชั่วโมง</b><span>${stamp(r.verbalAt)||"ยังไม่บันทึก"}</span></div>
-     <div class="${r.writtenAt?"ok":"late"}"><b>ลายลักษณ์อักษร ${S.writtenTxt}</b><span>${stamp(r.writtenAt)||"ยังไม่บันทึก"}</span></div>
+     ${(()=>{const vm=minutesSinceIncident(r,r.verbalAt), wm=minutesSinceIncident(r,r.writtenAt), wl=(L||r.suggestLevel)>=3?24*60:72*60;
+      return `<div class="${r.verbalAt&&(vm===null||vm<=60)?"ok":"late"}"><b>แจ้งด้วยวาจา ภายใน 1 ชั่วโมง</b><span>${stamp(r.verbalAt)?stamp(r.verbalAt)+dueText(vm,60):"ยังไม่ได้แจ้ง"}</span>
+        <small>${r.verbalAt?"เวลาที่ผู้รายงานแจ้งหัวหน้างาน":"หัวหน้างานบันทึกเวลาที่รับแจ้งได้ตอนยืนยันข้อเท็จจริง"}</small></div>
+      <div class="${r.writtenAt&&(wm===null||wm<=wl)?"ok":"late"}"><b>ลายลักษณ์อักษร ${S.writtenTxt}</b><span>${stamp(r.writtenAt)?stamp(r.writtenAt)+dueText(wm,wl):"ยังไม่บันทึก"}</span>
+        <small>เวลาที่ส่งรายงานนี้ในระบบ</small></div>`;})()}
      ${S.uni?`<div class="${r.uniReportAt?"ok":"late"}"><b>รายงานมหาวิทยาลัย ทันที</b><span>${stamp(r.uniReportAt)||"ยังไม่ได้รายงาน"}</span></div>`:""}
     </div>
     <div class="hint-t" style="margin-top:10px">ระยะเวลาการสอบสวน: ${S.investTxt}</div>
@@ -3086,6 +3090,8 @@ function openConfirmFact(id){
     <dt>ลักษณะ</dt><dd>${r.kind==="near"?"เหตุการณ์เกือบเกิดอุบัติเหตุ":"อุบัติเหตุ"}</dd>
     <dt>ระดับเบื้องต้น</dt><dd>ระดับ ${r.suggestLevel} (${SEV[r.suggestLevel].word}) จากที่ผู้รายงานกรอก</dd>
    </dl>
+   <div class="fld"><label class="f">รับแจ้งด้วยวาจาเมื่อ <span>(${r.verbalAt?"ผู้รายงานระบุ "+stamp(r.verbalAt)+" — แก้ได้ถ้าไม่ตรง":"ผู้รายงานยังไม่ได้ระบุ"})</span></label>
+    <input type="datetime-local" id="cf_verbal" value="${esc(String(r.verbalAt||"").replace(" ","T").slice(0,16))}" max="${nowLocalInput()}" style="max-width:260px"></div>
    <div class="fld"><label class="f">ข้อมูลเพิ่มเติมหรือข้อทักท้วง (ถ้ามี)</label>
     <textarea id="cf_note" placeholder="เช่น ข้อเท็จจริงที่คลาดเคลื่อน พยานที่เกี่ยวข้อง หรือรายละเอียดที่ผู้รายงานไม่ทราบ"></textarea></div>
    <label class="ckline"><input type="checkbox" id="cf_ok"> ข้าพเจ้าได้ตรวจสอบและยืนยันว่าเหตุการณ์นี้เกิดขึ้นจริงตามที่รายงาน</label>`,
@@ -3094,7 +3100,10 @@ function openConfirmFact(id){
 function submitConfirmFact(id){
  if(!document.getElementById("cf_ok").checked)return toast("กรุณาติ๊กยืนยันว่าได้ตรวจสอบข้อเท็จจริงแล้ว");
  const note=document.getElementById("cf_note").value.trim();
- closeStepOvl(); applyStep(id,"confirmed",{confirmNote:note});
+ const r=INCIDENTS.find(x=>x.id===id)||{}, v=(document.getElementById("cf_verbal")||{}).value||"";
+ const data={confirmNote:note};
+ if(v&&v.replace("T"," ")!==String(r.verbalAt||"").slice(0,16))data.verbalAt=v;   /* ส่งเฉพาะเมื่อบันทึกใหม่หรือแก้เวลา */
+ closeStepOvl(); applyStep(id,"confirmed",data);
 }
 
 /* ---------- ยกเลิกรายงานที่ส่งผิด ----------
@@ -3447,10 +3456,14 @@ function pgNew(){
 
    <div class="step-pane" data-s="1"><div class="card"><div class="card-h"><h3>ข้อมูลการเกิดอุบัติการณ์</h3></div><div class="card-b">
     <div class="grid g3">
-     <div class="fld"><label class="f req">วันที่เกิดเหตุ</label><input type="date" id="f_date" value="2026-08-05"></div>
-     <div class="fld"><label class="f req">เวลา</label><input type="time" id="f_time" value="09:00"></div>
+     <div class="fld"><label class="f req">วันที่เกิดเหตุ</label><input type="date" id="f_date"></div>
+     <div class="fld"><label class="f req">เวลา</label><input type="time" id="f_time"></div>
      <div class="fld"><label class="f req">สถานที่</label><input type="text" id="f_place" placeholder="อาคาร ชั้น ห้อง"></div>
     </div>
+    <div class="fld"><label class="f req">แจ้งหัวหน้างานด้วยวาจาเมื่อ <span>(ตามตารางระดับความรุนแรง ต้องแจ้งภายใน 1 ชั่วโมงหลังเกิดเหตุ — ต่อหน้า โทรศัพท์ หรือไลน์)</span></label>
+     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><input type="datetime-local" id="f_verbal" style="width:260px;max-width:100%">
+      <label style="display:inline-flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer;margin:0"><input type="checkbox" id="f_noverbal" style="width:auto;margin:0" onchange="document.getElementById('f_verbal').disabled=this.checked"> ยังไม่ได้แจ้งด้วยวาจา</label></div>
+     <div class="hintline">ถ้ายังไม่ได้แจ้ง หัวหน้างานจะบันทึกเวลาที่รับแจ้งตอนยืนยันข้อเท็จจริง · ส่วน "ลายลักษณ์อักษร" ระบบบันทึกให้เองเมื่อกดส่งรายงานนี้</div></div>
     <div class="fld"><label class="f">ตำแหน่งบนแผนที่ <span>(ไม่บังคับ — ช่วยให้กองอาคารสถานที่หาจุดเกิดเหตุได้เร็วขึ้น)</span></label>
      <div class="maprow">
       <input type="text" id="f_map" placeholder="วางลิงก์ Google Maps หรือพิกัด เช่น 16.7449, 100.1926" oninput="mapPreview()">
@@ -3516,7 +3529,26 @@ function pgNew(){
    <div class="card-b" id="routePrev"></div></div>
  </div>`;
 }
-function initForm(){F={cats:[],catOther:"",kind:"",parts:[],files:[],anon:false,step:0,inj:1,dmg:1};pickInj(1);renderFiles();updateCatCounts()}
+function initForm(){F={cats:[],catOther:"",kind:"",parts:[],files:[],anon:false,step:0,inj:1,dmg:1};pickInj(1);renderFiles();updateCatCounts();
+ /* วันเวลาเริ่มต้น = ตอนเปิดแบบฟอร์ม (รุ่น 2.8.45 — เดิมเป็นวันที่ตายตัว 2026-08-05 09:00 ผู้รายงานที่ไม่ได้แก้จะส่งวันที่ผิด) */
+ const n=nowLocalInput(), set=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value)el.value=v;};
+ set("f_date",n.slice(0,10));set("f_time",n.slice(11,16));set("f_verbal",n);
+ const el=document.getElementById("f_verbal");if(el)el.max=n;}
+/* วันเวลาปัจจุบันของเครื่องผู้ใช้ในรูปแบบ input datetime-local (yyyy-MM-ddTHH:mm) */
+function nowLocalInput(){const d=new Date(),p=x=>String(x).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes())}
+/* เทียบเวลาที่บันทึกกับเวลาเกิดเหตุ (นาที) — ใช้แสดง ภายในกำหนด / เกินกำหนด ในหน้ารายละเอียด */
+function minutesSinceIncident(r,v){
+ const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/), d=String(r.date||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+ if(!m||!d)return null;
+ const t=/^\d{2}:\d{2}$/.test(r.time||"")?r.time.split(":").map(Number):[0,0];
+ return Math.round((new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5])-new Date(+d[1],d[2]-1,+d[3],t[0],t[1]))/60000);
+}
+function dueText(mins,limit){
+ if(mins===null)return "";
+ if(mins<=limit)return " · ภายในกำหนด";
+ const over=mins-limit, h=Math.floor(over/60), dd=Math.floor(h/24);
+ return " · เกินกำหนด "+(dd?dd+" วัน "+(h%24?h%24+" ชม.":""):h?h+" ชม. "+(over%60?over%60+" นาที":""):over+" นาที").trim();
+}
 function stepTo(i){
  F.step=i;
  document.querySelectorAll(".step-tab").forEach(t=>t.classList.toggle("on",+t.dataset.s===i));
@@ -3599,6 +3631,7 @@ function renderReview(){
   <dt>คณะ/หน่วยงานที่เกิดเหตุ</dt><dd>${esc(g("f_unit"))}</dd>
   <dt>หน่วยงานในคณะ</dt><dd>${esc(g("f_subunit"))||"—"}</dd>
   <dt>วันเวลา สถานที่</dt><dd class="mono">${esc(g("f_date"))} ${esc(g("f_time"))} · ${esc(g("f_place"))||"—"}${mapUrlOf(g("f_map"))?" · มีตำแหน่งแผนที่":""}</dd>
+  <dt>แจ้งด้วยวาจา</dt><dd class="mono">${(document.getElementById("f_noverbal")||{}).checked?"ยังไม่ได้แจ้ง (หัวหน้างานบันทึกตอนยืนยันข้อเท็จจริง)":esc(g("f_verbal").replace("T"," "))||"—"}</dd>
   <dt>อุบัติการณ์ที่พบ</dt><dd>${g("f_detail")?esc(g("f_detail")):"<span style='color:var(--L4)'>ยังไม่ได้กรอก</span>"}</dd>
   <dt>ผลต่อร่างกาย</dt><dd>${INJURY[F.inj-1].t}${F.parts.length?" · "+F.parts.join(", "):""}</dd>
   <dt>มูลค่าความเสียหาย</dt><dd class="mono">${fmtB(+g("f_baht")||0)} บาท · ${DAMAGE[F.dmg-1].t}</dd>
@@ -4740,7 +4773,8 @@ submitForm = function(){
     parts:F.parts, treat:g('f_treat'), daysOff:+g('f_off') || 0,
     assets:g('f_assets'), firstAid:g('f_firstaid'),
     involved:[1,2,3,4].map(function(i){ return g('f_inv' + i); }).filter(Boolean),
-    files:F.files, anon:F.anon
+    files:F.files, anon:F.anon,
+    verbalAt:(document.getElementById('f_noverbal')||{}).checked ? '' : g('f_verbal')
   }], function(res){
     toast(res.level >= 3
       ? 'ส่งรายงานแล้ว (' + res.id + ') ระดับที่คำนวณได้คือระดับ ' + res.level +

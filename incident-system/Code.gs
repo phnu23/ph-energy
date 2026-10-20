@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.44';
+var APP_VERSION = '2.8.45';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1686,6 +1686,23 @@ function refresh_(since) {
   return { full:false, syncedAt:now_(), total:all.length, incidents:changed };
 }
 
+/* เวลาที่แจ้งด้วยวาจา (รุ่น 2.8.45) รับ yyyy-MM-dd HH:mm หรือ yyyy-MM-ddTHH:mm · ว่าง = ยังไม่ได้แจ้ง
+   ต้องไม่ก่อนวันที่เกิดเหตุ และไม่อยู่ในอนาคต */
+function verbalStamp_(v, incidentDate) {
+  var t = String(v == null ? '' : v).trim().replace('T', ' ');
+  if (!t) return '';
+  var m = t.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);
+  if (!m || +m[2] > 23 || +m[3] > 59) throw apiError_('VALIDATION_FAILED', 'รูปแบบเวลาที่แจ้งด้วยวาจาไม่ถูกต้อง', { verbalAt:'ต้องเป็นวันที่และเวลา' });
+  validDate_(m[1], 'วันที่แจ้งด้วยวาจา');
+  var out = m[1] + ' ' + m[2] + ':' + m[3];
+  if (incidentDate && m[1] < String(incidentDate).slice(0, 10))
+    throw apiError_('VALIDATION_FAILED', 'เวลาที่แจ้งด้วยวาจาต้องไม่ก่อนวันที่เกิดเหตุ', { verbalAt:'ก่อนวันที่เกิดเหตุ' });
+  /* เผื่อนาฬิกาเครื่องผู้ใช้เดินเร็วกว่าเซิร์ฟเวอร์ได้ 10 นาที */
+  var limit = Utilities.formatDate(new Date(Date.now() + 10 * 60000), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  if (out > limit) throw apiError_('VALIDATION_FAILED', 'เวลาที่แจ้งด้วยวาจาต้องไม่อยู่ในอนาคต', { verbalAt:'อยู่ในอนาคต' });
+  return out;
+}
+
 function createIncident_(p) {
   var u = me_();
   need_(u, 'create');
@@ -1723,7 +1740,9 @@ function createIncident_(p) {
     parts:list_(p.parts, 10, 100), treat:txt_(p.treat, 1000), daysOff:nonNegativeNumber_(p.daysOff, 'daysOff', 36500),
     assets:txt_(p.assets, 1000), firstAid:txt_(p.firstAid, 1000),
     confirmNote:'', causes:[], investNote:'', meetDate:'', meetPlace:'', capa:[], monitor:'', capaNote:'', deputyNote:'', monitorNote:'', reviewNote:'', ackNote:'', ackAt:'', closeNote:'',
-    verbalAt:ts, writtenAt:ts, uniReportAt:'', files:[], version:1,
+    /* แจ้งด้วยวาจา = เวลาที่ผู้รายงานระบุว่าแจ้งหัวหน้างานจริง (ว่าง = ยังไม่ได้แจ้ง ให้หัวหน้างานบันทึกตอนยืนยันข้อเท็จจริง)
+       ลายลักษณ์อักษร = เวลาที่ส่งรายงานนี้ในระบบ (รุ่น 2.8.45 — เดิมใช้เวลาส่งรายงานทั้งสองช่อง) */
+    verbalAt:verbalStamp_(p.verbalAt, date), writtenAt:ts, uniReportAt:'', files:[], version:1,
     log:[{ t:'บันทึกรายงานเข้าสู่ระบบ', by:rec_by_(u, p.anon), d:ts, hi:1 }]
   };
 
@@ -1937,7 +1956,7 @@ function advanceStatus_(id, to, payload) {
      และ reviewNote ไปกับขั้น confirmed ได้ เรื่องจะแสดงความเห็นของคณบดีที่คณบดีไม่เคยเขียน
      ผูกแต่ละช่องไว้กับขั้นของตัวเองที่นี่จุดเดียว ช่องที่ส่งมาผิดขั้นถูกปฏิเสธทันที */
   var STEP_FIELDS = {
-    confirmed:['confirmNote'],
+    confirmed:['confirmNote','verbalAt'],
     investigating:['meetDate','meetPlace','causes','investNote'],
     capa:['capa'],
     monitoring:['capa','monitorNote'],
@@ -2045,6 +2064,8 @@ function advanceStatus_(id, to, payload) {
   if (Array.isArray(p.capa) && p.capa.length) r.capa = list_(p.capa, 30, 1000);   // แก้ไขมาตรการซ้ำได้
   if (p.investNote !== undefined && p.investNote !== '') r.investNote = txt_(p.investNote, 5000);
   if (p.confirmNote) r.confirmNote = txt_(p.confirmNote, 2000);
+  /* หัวหน้างานบันทึก/แก้เวลาที่รับแจ้งด้วยวาจาได้ตอนยืนยันข้อเท็จจริง (รุ่น 2.8.45) — ส่งค่าว่างมา = คงค่าเดิม */
+  if (p.verbalAt) r.verbalAt = verbalStamp_(p.verbalAt, r.date);
   if (p.monitorNote) r.monitorNote = txt_(p.monitorNote, 2000);
   if (p.closeNote)   r.closeNote   = txt_(p.closeNote, 2000);
   if (p.ackNote)     r.ackNote     = txt_(p.ackNote, 2000);
