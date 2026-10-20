@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.42';
+var APP_VERSION = '2.8.43';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -3682,12 +3682,44 @@ function notifyOverdueCapa_(e) {
     lock = LockService.getScriptLock();
     if (!lock.tryLock(30000)) return 'มีการส่งอีเมลมาตรการเกินกำหนดอยู่แล้ว';
     if (props.getProperty('OVERDUE_SENT_DATE') === today) { lock.releaseLock(); return 'ส่งอีเมลของวันนี้ไปแล้ว'; }
+    /* หลายโปรเจกต์ที่ผูกฐานข้อมูลเดียวกันทำงานนาทีเดียวกัน (รุ่น 2.8.43) — จองสิทธิ์ในไฟล์ฐานข้อมูลก่อน ให้ส่งได้โปรเจกต์เดียว */
+    if (!claimOverdueRun_(today)) { props.setProperty('OVERDUE_SENT_DATE', today); lock.releaseLock(); return 'โปรเจกต์อื่นเป็นผู้ส่งอีเมลของวันนี้'; }
   }
   try { return notifyOverdueCapaRun_(today, !e); }
   finally {
     if (e) { props.setProperty('OVERDUE_SENT_DATE', today); try { lock.releaseLock(); } catch (ignore) {} }
   }
 }
+/* จองสิทธิ์ส่งอีเมลมาตรการเกินกำหนดของวันนี้ (รุ่น 2.8.43)
+   Script Lock / Script Properties แยกกันต่อโปรเจกต์ ถ้ามีหลายโปรเจกต์ (เช่น สำเนาหรือระบบเดิม) ทำงานพร้อมกัน
+   ทุกโปรเจกต์จะเห็นว่ายังไม่มีใครส่ง แล้วส่งซ้ำกัน — จึงเขียนการจองลง Developer Metadata ของไฟล์ฐานข้อมูล (ทุกโปรเจกต์เห็นร่วมกัน)
+   รอให้การจองของโปรเจกต์อื่นที่ทำงานพร้อมกันเขียนเสร็จ แล้วให้ผู้จองก่อนเป็นผู้ส่งเพียงโปรเจกต์เดียว
+   ถ้าอ่าน/เขียนการจองไม่ได้ ให้ส่งตามเดิม (ส่งซ้ำดีกว่าไม่ส่ง) */
+var OVERDUE_CLAIM_KEY = 'nuIncidentOverdueClaim';
+function claimOverdueRun_(today) {
+  try {
+    var ss = db_(), id = String(ScriptApp.getScriptId());
+    var read = function () {
+      return ss.getDeveloperMetadata().filter(function (m) { return m.getKey() === OVERDUE_CLAIM_KEY; }).map(function (m) {
+        var v = {}; try { v = JSON.parse(m.getValue()); } catch (e) {}
+        return { m:m, d:v.d, id:v.id, ms:Number(v.ms) || 0 };
+      });
+    };
+    read().forEach(function (c) { if (c.d !== today) { try { c.m.remove(); } catch (ignore) {} } });
+    ss.addDeveloperMetadata(OVERDUE_CLAIM_KEY, JSON.stringify({ d:today, id:id, ms:Date.now(), v:APP_VERSION, t:now_() }));
+    SpreadsheetApp.flush();
+    Utilities.sleep(6000);
+    /* ผู้จองก่อนเป็นผู้ส่ง (เวลาเท่ากันใช้รหัสโปรเจกต์ตัดสิน) — โปรเจกต์ที่มาทีหลังจึงไม่ส่งซ้ำแม้รหัสน้อยกว่า */
+    var claims = read().filter(function (c) { return c.d === today && c.id; }).sort(function (a, b) {
+      return a.ms - b.ms || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    });
+    return !claims.length || claims[0].id === id;
+  } catch (e) {
+    Logger.log('จองสิทธิ์ส่งอีเมลไม่สำเร็จ: ' + e.message);
+    return true;
+  }
+}
+
 /* รหัสท้ายของโปรเจกต์ Apps Script ที่ส่ง ใช้แยกว่าอีเมลซ้ำมาจากโปรเจกต์ใด (รุ่น 2.8.41) */
 function projectTag_() {
   try { return '…' + String(ScriptApp.getScriptId()).slice(-6); } catch (e) { return '-'; }
