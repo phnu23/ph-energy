@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.43';
+var APP_VERSION = '2.8.44';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -3674,20 +3674,25 @@ function cleanupExpiredAttachments_() {
 
 function notifyOverdueCapa_(e) {
   var today = today_();
-  /* กันส่งซ้ำในวันเดียวกัน (รุ่น 2.8.38) — ทริกเกอร์ซ้อนกันหรือ Google เรียกซ้ำ ทำให้ผู้รับได้อีเมลเดียวกัน 2 ฉบับ
-     ใช้เฉพาะการเรียกจากทริกเกอร์ (มี e) การกด Run เองใน editor ยังส่งได้ตามปกติเพื่อทดสอบ
-     หมายเหตุ: ถ้ามีโปรเจกต์ Apps Script อื่น (เช่น ระบบเดิม) ที่ยังมีทริกเกอร์นี้ จะยังส่งซ้ำจากโปรเจกต์นั้น */
+  /* กันส่งซ้ำในวันเดียวกัน — ใช้เฉพาะการเรียกจากทริกเกอร์ (มี e) การกด Run เองใน editor ยังส่งได้ตามปกติเพื่อทดสอบ
+     รุ่น 2.8.44: อีเมล 2 ฉบับของวันที่ 19–20/10/2569 มาจากโปรเจกต์เดียวกัน (รหัสโปรเจกต์ท้ายอีเมลตรงกัน) สาเหตุมี 2 ข้อ
+     (1) audit_ ที่เรียกระหว่างส่งขอ Script Lock ซ้ำแล้วปล่อยเอง ทำให้ lock ของรอบนี้หลุดตั้งแต่ส่งฉบับแรกเสร็จ
+     (2) OVERDUE_SENT_DATE เขียนตอนจบ รอบที่สองที่รอ lock อยู่จึงเข้ามาก่อนค่านี้ถูกเขียน และส่งซ้ำ
+     แก้: เขียน OVERDUE_SENT_DATE ก่อนส่ง (Script Properties เขียนทันที ไม่รอ flush) และตั้ง CURRENT_WRITE_LOCKED
+     ระหว่างถือ lock เพื่อให้ audit_ ใช้ lock เดิมโดยไม่ปล่อย */
   var lock = null, props = PropertiesService.getScriptProperties();
   if (e) {
     lock = LockService.getScriptLock();
     if (!lock.tryLock(30000)) return 'มีการส่งอีเมลมาตรการเกินกำหนดอยู่แล้ว';
-    if (props.getProperty('OVERDUE_SENT_DATE') === today) { lock.releaseLock(); return 'ส่งอีเมลของวันนี้ไปแล้ว'; }
+    if (props.getProperty('OVERDUE_SENT_DATE') === today) { releaseLockFlushed_(lock); return 'ส่งอีเมลของวันนี้ไปแล้ว'; }
+    props.setProperty('OVERDUE_SENT_DATE', today);
     /* หลายโปรเจกต์ที่ผูกฐานข้อมูลเดียวกันทำงานนาทีเดียวกัน (รุ่น 2.8.43) — จองสิทธิ์ในไฟล์ฐานข้อมูลก่อน ให้ส่งได้โปรเจกต์เดียว */
-    if (!claimOverdueRun_(today)) { props.setProperty('OVERDUE_SENT_DATE', today); lock.releaseLock(); return 'โปรเจกต์อื่นเป็นผู้ส่งอีเมลของวันนี้'; }
+    if (!claimOverdueRun_(today)) { releaseLockFlushed_(lock); return 'โปรเจกต์อื่นเป็นผู้ส่งอีเมลของวันนี้'; }
+    CURRENT_WRITE_LOCKED = true;
   }
   try { return notifyOverdueCapaRun_(today, !e); }
   finally {
-    if (e) { props.setProperty('OVERDUE_SENT_DATE', today); try { lock.releaseLock(); } catch (ignore) {} }
+    if (e) { CURRENT_WRITE_LOCKED = false; try { releaseLockFlushed_(lock); } catch (ignore) {} }
   }
 }
 /* จองสิทธิ์ส่งอีเมลมาตรการเกินกำหนดของวันนี้ (รุ่น 2.8.43)
