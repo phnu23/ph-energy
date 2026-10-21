@@ -1140,7 +1140,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.47";
+const CLIENT_VERSION="2.8.48";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -3161,13 +3161,14 @@ function submitReturn(id){
 const EDIT_FIELDS=[
  {k:"title",l:"ชื่อเรื่อง",req:1},{k:"kind",l:"ลักษณะเหตุการณ์",sel:[["acc","อุบัติเหตุ"],["near","เหตุการณ์เกือบเกิดอุบัติเหตุ"]]},
  {k:"date",l:"วันที่เกิดเหตุ",type:"date",req:1},{k:"time",l:"เวลา",type:"time"},
+ {k:"verbalAt",l:"แจ้งด้วยวาจาตามสายบังคับบัญชาเมื่อ <span>(เว้นว่าง = ยังไม่ได้แจ้ง)</span>",type:"datetime-local",dt:1},
  {k:"place",l:"สถานที่",req:1},{k:"mapUrl",l:"ตำแหน่งแผนที่ (ลิงก์ https)"},
  {k:"activity",l:"กิจกรรมขณะเกิดเหตุ"},{k:"course",l:"รายละเอียดกิจกรรม"},
  {k:"detail",l:"รายละเอียดเหตุการณ์",area:1,req:1},{k:"treat",l:"การรักษาพยาบาล",area:1},
  {k:"firstAid",l:"การปฐมพยาบาล",area:1},{k:"assets",l:"ทรัพย์สินที่เสียหาย",area:1}];
 function openEditReport(id){
  const r=INCIDENTS.find(x=>x.id===id); if(!r)return toast("ไม่พบรายงานนี้");
- const v=k=>esc(r[k]==null?"":String(r[k]));
+ const v=k=>{const x=r[k]==null?"":String(r[k]);return esc(EDIT_FIELDS.some(f=>f.k===k&&f.dt)?x.replace(" ","T").slice(0,16):x)};
  ovlShell("แก้ไขข้อมูลรายงาน",
   "ใช้แก้ข้อมูลที่ผู้รายงานกรอกคลาดเคลื่อน แทนการยกเลิกทั้งเรื่อง ระบบบันทึกผู้แก้ไข ช่องที่แก้ และเหตุผลไว้ในไทม์ไลน์และบันทึกร่องรอย "+
   "ประเภทเหตุการณ์ ผู้รายงาน และคณะ/หน่วยงาน แก้ไขที่นี่ไม่ได้ ส่วนระดับความรุนแรงใช้ขั้นประเมินระดับ",
@@ -3183,11 +3184,12 @@ function submitEditReport(id){
  const r=INCIDENTS.find(x=>x.id===id); if(!r)return toast("ไม่พบรายงานนี้");
  const fields={};
  EDIT_FIELDS.forEach(f=>{const el=document.getElementById("ed_"+f.k);if(!el)return;
-  const nv=String(el.value||"").trim(), ov=String(r[f.k]==null?"":r[f.k]).trim();
+  let nv=String(el.value||"").trim(), ov=String(r[f.k]==null?"":r[f.k]).trim();
+  if(f.dt){nv=nv.replace("T"," ");ov=ov.slice(0,16);}   /* datetime-local ใช้ T คั่น ส่วนข้อมูลเก็บแบบเว้นวรรค */
   if(nv!==ov)fields[f.k]=nv;});
  if(!Object.keys(fields).length)return toast("ยังไม่มีข้อมูลที่เปลี่ยนแปลง");
  const miss=EDIT_FIELDS.filter(f=>f.req&&fields[f.k]==="");
- if(miss.length)return toast("กรุณากรอก "+miss.map(f=>f.l).join(", "));
+ if(miss.length)return toast("กรุณากรอก "+miss.map(f=>f.l.replace(/<[^>]+>.*$/,"")).join(", "));
  const note=(document.getElementById("ed_note").value||"").trim();
  if(!note)return toast("กรุณาระบุเหตุผลที่แก้ไข");
  closeStepOvl();

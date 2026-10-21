@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.47';
+var APP_VERSION = '2.8.48';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -2185,9 +2185,11 @@ var EDIT_FIELDS = {
   course  :{ label:'รายละเอียดกิจกรรม', max:300 },
   treat   :{ label:'การรักษาพยาบาล', max:1000 },
   assets  :{ label:'ทรัพย์สินที่เสียหาย', max:1000 },
-  firstAid:{ label:'การปฐมพยาบาล', max:1000 }
+  firstAid:{ label:'การปฐมพยาบาล', max:1000 },
+  /* รุ่น 2.8.48: แก้เวลาที่แจ้งด้วยวาจาได้หลังผ่านขั้นยืนยันข้อเท็จจริง · ว่าง = ยังไม่ได้แจ้ง */
+  verbalAt:{ label:'เวลาที่แจ้งด้วยวาจา', verbal:1 }
 };
-function cleanEditValue_(k, v) {
+function cleanEditValue_(k, v, rec) {
   var f = EDIT_FIELDS[k], bad = function (m) { var o = {}; o[k] = m; return apiError_('VALIDATION_FAILED', f.label + ': ' + m, o); };
   if (typeof v !== 'string') throw bad('ต้องเป็นข้อความ');
   v = txt_(v, f.max || 300).trim();
@@ -2196,6 +2198,7 @@ function cleanEditValue_(k, v) {
   if (f.date) { v = validDate_(v, 'date'); if (v > today_()) throw bad('ต้องไม่เกินวันนี้'); }
   if (f.time && v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw bad('ต้องอยู่ในรูปแบบ HH:mm');
   if (f.url && v && !url_(v)) throw bad('ต้องเป็นลิงก์ https ที่ถูกต้อง');
+  if (f.verbal) v = verbalStamp_(v, rec && rec.date);
   return v;
 }
 function editIncident_(id, fields, note) {
@@ -2210,8 +2213,10 @@ function editIncident_(id, fields, note) {
   var r = notCancelled_(findScoped_(u, id));
   if (r.status === 'closed') throw apiError_('CONFLICT', 'เรื่องนี้ปิดแล้ว จึงแก้ไขข้อมูลรายงานไม่ได้');
   var changed = [];
+  /* แก้วันที่เกิดเหตุก่อนเวลาแจ้งด้วยวาจา เพื่อให้ตรวจเวลาแจ้งกับวันที่เกิดเหตุค่าใหม่ */
+  keys.sort(function (a, b) { return (a === 'verbalAt') - (b === 'verbalAt'); });
   keys.forEach(function (k) {
-    var v = cleanEditValue_(k, fields[k]);
+    var v = cleanEditValue_(k, fields[k], r);
     if (String(r[k] === undefined || r[k] === null ? '' : r[k]) === v) return;
     r[k] = v;
     changed.push(EDIT_FIELDS[k].label);
