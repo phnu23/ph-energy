@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.53';
+var APP_VERSION = '2.8.54';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1950,10 +1950,9 @@ function advanceStatus_(id, to, payload) {
   if (to === 'investigating' && !r.facNotifyAt && facultyHasRole_('office_head', r.faculty) &&
       (facultyHasRole_('deputy_dean_sup', r.faculty) || facultyHasRole_('dean', r.faculty)))
     throw apiError_('CONFLICT','หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย ต้องรายงานรองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง ทราบก่อน จึงจะเริ่มประชุมสอบสวนได้');
-  /* รุ่น 2.8.53 — เหตุระดับ 3 ขึ้นไป คณบดี / ผู้อำนวยการกอง ต้องรายงานมหาวิทยาลัยก่อนเริ่มประชุมสอบสวน
-     บังคับเฉพาะหน่วยงานที่มีคณบดีในระบบ ไม่ให้เรื่องค้างที่ขั้นประเมินระดับเพราะยังไม่ได้กำหนดบทบาท */
-  if (to === 'investigating' && SEV_UNI[r.level] && !r.uniReportAt && facultyHasRole_('dean', r.faculty))
-    throw apiError_('CONFLICT','เหตุระดับ ' + r.level + ' คณบดี / ผู้อำนวยการกอง ต้องรายงาน' + SEV_UNI[r.level] + ' ก่อน จึงจะเริ่มประชุมสอบสวนได้');
+  /* รุ่น 2.8.54 — การรายงานมหาวิทยาลัยของคณบดีไม่เป็นเงื่อนไขของการเริ่มประชุมสอบสวน
+     (รุ่น 2.8.53 เคยบังคับ) เพราะต้องสอบสวนให้ทันภายใน 24 ชั่วโมง ไม่ควรรอผู้อื่น
+     ยังบังคับก่อนปิดเรื่องตามเดิม (ดูขั้น closed ด้านล่าง) */
   /* ตรวจข้อมูลบังคับตามขั้นที่เซิร์ฟเวอร์ แม้ผู้เรียกข้ามหน้าจอหรือแก้ request เอง */
   if(to==='investigating') {
     p.meetDate=validDate_(p.meetDate,'วันที่ประชุมสอบสวน');
@@ -2163,7 +2162,7 @@ function reportToUniversity_(id, note) {
   /* รุ่น 2.8.53 — ส่งอีเมลรายงานของคณบดีถึงผู้บริหารมหาวิทยาลัยด้วย (เดิมบันทึกเวลาอย่างเดียว)
      ส่งก่อนบันทึก อีเมลส่งไม่ออก = ยังไม่ถือว่ารายงาน · ยังไม่มีผู้รับในระบบ = บันทึกได้ พร้อมระบุไว้ในไทม์ไลน์ */
   var m = uniMail_(r, u, 'คณบดี / ผู้อำนวยการกอง รายงานอุบัติการณ์ระดับ ' + r.level, [
-    'คณบดี / ผู้อำนวยการกอง รายงานอุบัติการณ์ระดับ ' + r.level + ' ทันทีหลังทราบเหตุการณ์ ก่อนเริ่มประชุมสอบสวน',
+    'คณบดี / ผู้อำนวยการกอง รายงานอุบัติการณ์ระดับ ' + r.level + ' ทันทีหลังทราบเหตุการณ์',
     note ? 'หมายเหตุ : ' + note : ''], 'รายงานมหาวิทยาลัย', false);
   r.uniReportAt = now_();
   r.log.push({ t:'คณบดี / ผู้อำนวยการกอง รายงาน' + SEV_UNI[r.level] + ' ทันทีหลังทราบเหตุการณ์' +
