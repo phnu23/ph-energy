@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.49';
+var APP_VERSION = '2.8.50';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1688,7 +1688,7 @@ function refresh_(since) {
 
 /* เวลาที่แจ้งด้วยวาจา (รุ่น 2.8.45) รับ yyyy-MM-dd HH:mm หรือ yyyy-MM-ddTHH:mm · ว่าง = ยังไม่ได้แจ้ง
    ต้องไม่ก่อนวันที่เกิดเหตุ และไม่อยู่ในอนาคต */
-function verbalStamp_(v, incidentDate) {
+function verbalStamp_(v, incidentDate, incidentTime) {
   var t = String(v == null ? '' : v).trim().replace('T', ' ');
   if (!t) return '';
   var m = t.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);
@@ -1697,6 +1697,10 @@ function verbalStamp_(v, incidentDate) {
   var out = m[1] + ' ' + m[2] + ':' + m[3];
   if (incidentDate && m[1] < String(incidentDate).slice(0, 10))
     throw apiError_('VALIDATION_FAILED', 'เวลาที่แจ้งด้วยวาจาต้องไม่ก่อนวันที่เกิดเหตุ', { verbalAt:'ก่อนวันที่เกิดเหตุ' });
+  /* รุ่น 2.8.50: ถ้ารู้เวลาเกิดเหตุ เวลาที่แจ้งต้องไม่ก่อนเวลาเกิดเหตุด้วย (เดิมเทียบเฉพาะวันที่ แจ้ง 10:00 ของเหตุ 10:30 จึงขึ้น "ภายในกำหนด") */
+  var it = String(incidentTime || '').trim();
+  if (incidentDate && /^([01]\d|2[0-3]):[0-5]\d$/.test(it) && out < String(incidentDate).slice(0, 10) + ' ' + it)
+    throw apiError_('VALIDATION_FAILED', 'เวลาที่แจ้งด้วยวาจาต้องไม่ก่อนเวลาเกิดเหตุ (' + it + ' น.)', { verbalAt:'ก่อนเวลาเกิดเหตุ' });
   /* เผื่อนาฬิกาเครื่องผู้ใช้เดินเร็วกว่าเซิร์ฟเวอร์ได้ 10 นาที */
   var limit = Utilities.formatDate(new Date(Date.now() + 10 * 60000), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
   if (out > limit) throw apiError_('VALIDATION_FAILED', 'เวลาที่แจ้งด้วยวาจาต้องไม่อยู่ในอนาคต', { verbalAt:'อยู่ในอนาคต' });
@@ -1742,7 +1746,7 @@ function createIncident_(p) {
     confirmNote:'', causes:[], investNote:'', meetDate:'', meetPlace:'', capa:[], monitor:'', capaNote:'', deputyNote:'', monitorNote:'', reviewNote:'', ackNote:'', ackAt:'', closeNote:'',
     /* แจ้งด้วยวาจา = เวลาที่ผู้รายงานระบุว่าแจ้งหัวหน้างานจริง (ว่าง = ยังไม่ได้แจ้ง ให้หัวหน้างานบันทึกตอนยืนยันข้อเท็จจริง)
        ลายลักษณ์อักษร = เวลาที่ส่งรายงานนี้ในระบบ (รุ่น 2.8.45 — เดิมใช้เวลาส่งรายงานทั้งสองช่อง) */
-    verbalAt:verbalStamp_(p.verbalAt, date), writtenAt:ts, uniReportAt:'', files:[], version:1,
+    verbalAt:verbalStamp_(p.verbalAt, date, p.time), writtenAt:ts, uniReportAt:'', files:[], version:1,
     log:[{ t:'บันทึกรายงานเข้าสู่ระบบ', by:rec_by_(u, p.anon), d:ts, hi:1 }]
   };
 
@@ -2065,7 +2069,7 @@ function advanceStatus_(id, to, payload) {
   if (p.investNote !== undefined && p.investNote !== '') r.investNote = txt_(p.investNote, 5000);
   if (p.confirmNote) r.confirmNote = txt_(p.confirmNote, 2000);
   /* หัวหน้างานบันทึก/แก้เวลาที่รับแจ้งด้วยวาจาได้ตอนยืนยันข้อเท็จจริง (รุ่น 2.8.45) — ส่งค่าว่างมา = คงค่าเดิม */
-  if (p.verbalAt) r.verbalAt = verbalStamp_(p.verbalAt, r.date);
+  if (p.verbalAt) r.verbalAt = verbalStamp_(p.verbalAt, r.date, r.time);
   if (p.monitorNote) r.monitorNote = txt_(p.monitorNote, 2000);
   if (p.closeNote)   r.closeNote   = txt_(p.closeNote, 2000);
   if (p.ackNote)     r.ackNote     = txt_(p.ackNote, 2000);
@@ -2198,7 +2202,7 @@ function cleanEditValue_(k, v, rec) {
   if (f.date) { v = validDate_(v, 'date'); if (v > today_()) throw bad('ต้องไม่เกินวันนี้'); }
   if (f.time && v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw bad('ต้องอยู่ในรูปแบบ HH:mm');
   if (f.url && v && !url_(v)) throw bad('ต้องเป็นลิงก์ https ที่ถูกต้อง');
-  if (f.verbal) v = verbalStamp_(v, rec && rec.date);
+  if (f.verbal) v = verbalStamp_(v, rec && rec.date, rec && rec.time);
   return v;
 }
 function editIncident_(id, fields, note) {

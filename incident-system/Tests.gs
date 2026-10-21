@@ -1,6 +1,6 @@
 /* ============================================================
  *  Tests.gs — ชุดทดสอบที่รันจาก Apps Script Editor
- *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.49
+ *  ใช้กับ Code.gs / Api.gs / Index.html รุ่น 2.8.50
  *
  *  วิธีใช้ : เลือกฟังก์ชันจากช่องดรอปดาวน์ด้านบนแล้วกด Run
  *            ผลลัพธ์อ่านได้ที่ Execution log (Ctrl+Enter)
@@ -874,6 +874,8 @@ function unitStructure_() {
     eq_(cleanEditValue_('verbalAt', '', { date:'2026-01-05' }), '', 'ล้างเวลาที่แจ้งด้วยวาจา');
     eq_(cleanEditValue_('verbalAt', '2026-01-05T10:45', { date:'2026-01-05' }), '2026-01-05 10:45', 'รับรูปแบบ datetime-local');
     throws_('VALIDATION_FAILED', function () { cleanEditValue_('verbalAt', '2026-01-04 10:45', { date:'2026-01-05' }); });
+    throws_('VALIDATION_FAILED', function () { cleanEditValue_('verbalAt', '2026-01-05 10:00', { date:'2026-01-05', time:'10:30' }); });
+    eq_(cleanEditValue_('verbalAt', '2026-01-05 10:30', { date:'2026-01-05', time:'10:30' }), '2026-01-05 10:30', 'แจ้งเวลาเดียวกับเกิดเหตุได้');
     throws_('VALIDATION_FAILED', function () { cleanEditValue_('kind', 'other'); });
     eq_(cleanEditValue_('time', '08:30'), '08:30', 'เวลาที่ถูกต้อง');
     return ok_(API_ACTIONS['incident.edit'] && API_ACTIONS['incident.edit'].needsVersion, 'incident.edit ต้องบังคับ expectedVersion');

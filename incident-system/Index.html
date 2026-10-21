@@ -1140,7 +1140,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.49";
+const CLIENT_VERSION="2.8.50";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -3091,7 +3091,7 @@ function openConfirmFact(id){
     <dt>ระดับเบื้องต้น</dt><dd>ระดับ ${r.suggestLevel} (${SEV[r.suggestLevel].word}) จากที่ผู้รายงานกรอก</dd>
    </dl>
    <div class="fld"><label class="f">รับแจ้งด้วยวาจาเมื่อ <span>(${r.verbalAt?"ผู้รายงานระบุ "+stamp(r.verbalAt)+" — แก้ได้ถ้าไม่ตรง":"ผู้รายงานยังไม่ได้ระบุ"})</span></label>
-    <input type="datetime-local" id="cf_verbal" value="${esc(String(r.verbalAt||"").replace(" ","T").slice(0,16))}" max="${nowLocalInput()}" style="max-width:260px"></div>
+    <input type="datetime-local" id="cf_verbal" value="${esc(String(r.verbalAt||"").replace(" ","T").slice(0,16))}" max="${nowLocalInput()}" onfocus="this.max=nowLocalInput()" style="max-width:260px"></div>
    <div class="fld"><label class="f">ข้อมูลเพิ่มเติมหรือข้อทักท้วง (ถ้ามี)</label>
     <textarea id="cf_note" placeholder="เช่น ข้อเท็จจริงที่คลาดเคลื่อน พยานที่เกี่ยวข้อง หรือรายละเอียดที่ผู้รายงานไม่ทราบ"></textarea></div>
    <label class="ckline"><input type="checkbox" id="cf_ok"> ข้าพเจ้าได้ตรวจสอบและยืนยันว่าเหตุการณ์นี้เกิดขึ้นจริงตามที่รายงาน</label>`,
@@ -3463,7 +3463,7 @@ function pgNew(){
      <div class="fld"><label class="f req">สถานที่</label><input type="text" id="f_place" placeholder="อาคาร ชั้น ห้อง"></div>
     </div>
     <div class="fld"><label class="f req">แจ้งด้วยวาจาตามสายบังคับบัญชาเมื่อ <span>(ตามตารางความรุนแรงต้องแจ้งภายใน 1 ชั่วโมงหลังเกิดเหตุ)</span></label>
-     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><input type="datetime-local" id="f_verbal" style="width:260px;max-width:100%">
+     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><input type="datetime-local" id="f_verbal" style="width:260px;max-width:100%" onfocus="this.max=nowLocalInput()">
       <label style="display:inline-flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer;margin:0"><input type="checkbox" id="f_noverbal" style="width:auto;margin:0" onchange="document.getElementById('f_verbal').disabled=this.checked"> ยังไม่ได้แจ้งด้วยวาจา</label></div>
      <div class="hintline">ถ้ายังไม่ได้แจ้ง หัวหน้างานจะบันทึกเวลาที่รับแจ้งตอนยืนยันข้อเท็จจริง · ส่วน "ลายลักษณ์อักษร" ระบบบันทึกให้เองเมื่อกดส่งรายงานนี้</div></div>
     <div class="fld"><label class="f">ตำแหน่งบนแผนที่ <span>(ไม่บังคับ — ช่วยให้กองอาคารสถานที่หาจุดเกิดเหตุได้เร็วขึ้น)</span></label>
@@ -3539,7 +3539,7 @@ function initForm(){F={cats:[],catOther:"",kind:"",parts:[],files:[],anon:false,
  /* วันเวลาเริ่มต้น = ตอนเปิดแบบฟอร์ม (รุ่น 2.8.45 — เดิมเป็นวันที่ตายตัว 2026-08-05 09:00 ผู้รายงานที่ไม่ได้แก้จะส่งวันที่ผิด) */
  const n=nowLocalInput(), set=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value)el.value=v;};
  set("f_date",n.slice(0,10));set("f_time",n.slice(11,16));set("f_verbal",n);
- const el=document.getElementById("f_verbal");if(el)el.max=n;}
+ const el=document.getElementById("f_verbal");if(el)el.max=n;   /* อัปเดตอีกครั้งทุกครั้งที่กดช่อง */}
 /* วันเวลาปัจจุบันของเครื่องผู้ใช้ในรูปแบบ input datetime-local (yyyy-MM-ddTHH:mm) */
 function nowLocalInput(){const d=new Date(),p=x=>String(x).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes())}
 /* เทียบเวลาที่บันทึกกับเวลาเกิดเหตุ (นาที) — ใช้แสดง ภายในกำหนด / เกินกำหนด ในหน้ารายละเอียด */
@@ -4785,6 +4785,9 @@ submitForm = function(){
   if (!g('f_title') || !F.kind || !F.cats.length || !g('f_date') || !g('f_place') || !g('f_detail')) {
     return toast('กรุณากรอกชื่อ ลักษณะ ประเภท วันที่ สถานที่ และรายละเอียดอุบัติการณ์ให้ครบก่อนส่ง');
   }
+  var vb = (document.getElementById('f_noverbal') || {}).checked ? '' : g('f_verbal');
+  if (vb && g('f_time') && vb.replace('T', ' ') < g('f_date') + ' ' + g('f_time'))
+    return toast('เวลาที่แจ้งด้วยวาจาต้องไม่ก่อนวันเวลาที่เกิดเหตุ กรุณาตรวจสอบในขั้นที่ 2');
   if (BUSY) return;
   busy(true, 'กำลังส่งรายงาน…');
   srv('createIncident', [{
