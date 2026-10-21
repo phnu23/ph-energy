@@ -32,6 +32,7 @@ var API_ACTIONS = {
   'incident.suggest':           { fn:addSuggestion_,         method:'PATCH', needsVersion:1 },
   'incident.reportUniversity':  { fn:reportToUniversity_,    method:'PATCH', needsVersion:1 },
   'incident.notifyFaculty':     { fn:notifyFacultyLeaders_,  method:'PATCH', needsVersion:1 },
+  'incident.reportCapaUniversity': { fn:reportCapaToUniversity_, method:'PATCH', needsVersion:1 },
   'incident.cancel':            { fn:cancelIncident_,        method:'PATCH', needsVersion:1 },
   /* ส่งเรื่องกลับขั้นก่อนหน้าแทนการยกเลิกทั้งเรื่อง — ดู RETURN_MAP ใน Code.gs
      เป็นการแก้ไขเรื่องเดิม จึงต้องส่ง expectedVersion และจับ Script Lock เหมือนคำสั่งแก้ไขอื่น */
@@ -210,7 +211,7 @@ var API_PAYLOAD_FIELDS={
   'incident.create':['title','kind','cats','unit','subUnit','mapUrl','date','time','place','detail','activity','course','injuryAxis','damageBaht','parts','treat','daysOff','assets','firstAid','involved','files','anon','verbalAt'],
   'incident.assess':['incidentId','injuryAxis','damageBaht','damageAxis','daysOff','note'],
   'incident.transition':['incidentId','to','data'], 'incident.suggest':['incidentId','note','kind'],
-  'incident.reportUniversity':['incidentId'], 'incident.notifyFaculty':['incidentId','note'], 'incident.cancel':['incidentId','note'],
+  'incident.reportUniversity':['incidentId','note'], 'incident.notifyFaculty':['incidentId','note'], 'incident.reportCapaUniversity':['incidentId','note'], 'incident.cancel':['incidentId','note'],
   'incident.return':['incidentId','note'], 'incident.edit':['incidentId','fields','note'],
   'attachment.upload':['name','mime','data'], 'admin.user.list':[],
   'org.headcount.list':[], 'org.headcount.save':['rows'], 'report.facultyIndex':[],
@@ -267,7 +268,8 @@ function normalizeActionArgs_(action, p) {
       p.note === undefined ? '' : txt_(String(p.note), 1000)];
     case 'incident.transition': return [requiredId_(p.incidentId), requiredText_(p.to, 'to', 30), p.data || {}];
     case 'incident.suggest': return [requiredId_(p.incidentId), requiredText_(p.note, 'note', 5000), p.kind || 'office'];
-    case 'incident.reportUniversity': return [requiredId_(p.incidentId)];
+    case 'incident.reportUniversity': return [requiredId_(p.incidentId), p.note===undefined?'':txt_(String(p.note),1000)];
+    case 'incident.reportCapaUniversity': return [requiredId_(p.incidentId), p.note===undefined?'':txt_(String(p.note),1000)];
     case 'incident.notifyFaculty':    return [requiredId_(p.incidentId), p.note===undefined?'':txt_(String(p.note),1000)];
     case 'incident.cancel': return [requiredId_(p.incidentId), requiredText_(p.note, 'note', 1000)];
     case 'incident.return': return [requiredId_(p.incidentId), requiredText_(p.note, 'note', 2000)];

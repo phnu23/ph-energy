@@ -118,7 +118,7 @@ var SHEETS = {
                'activity','course','involved',
                'injuryAxis','damageAxis','damageBaht','parts','treat','daysOff','assets','firstAid',
                'confirmNote','causes','investNote','meetDate','meetPlace','capa','monitor','capaNote','deputyNote','monitorNote','monitorLog','reviewNote','ackNote','ackAt','closeNote',
-               'verbalAt','writtenAt','uniReportAt','facNotifyAt','files','log',
+               'verbalAt','writtenAt','uniReportAt','facNotifyAt','capaReportAt','files','log',
                'cancelledAt','cancelNote','version'],
   Users     : ['email','name','position','faculty','orgUnit','unit','role','active','createdAt','approvedAt'],
   /* ทะเบียนจำนวนบุคลากรรายหน่วยงาน — ตัวหารของ IFR / PDFR / ISR
@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.52';
+var APP_VERSION = '2.8.53';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1020,7 +1020,7 @@ function hydrate_(o) {
   o.version = Number(o.version) || 1;
   ['date','meetDate'].forEach(function (k) { o[k] = fmtDate_(o[k]); });
   o.time = fmtTime_(o.time);
-  ['createdAt','updatedAt','ackAt','verbalAt','writtenAt','uniReportAt','facNotifyAt','cancelledAt']
+  ['createdAt','updatedAt','ackAt','verbalAt','writtenAt','uniReportAt','facNotifyAt','capaReportAt','cancelledAt']
     .forEach(function (k) { o[k] = fmtStamp_(o[k]); });
   return o;
 }
@@ -1390,7 +1390,7 @@ function statStub_(x) {
 var MASK_KEEP = ['id','createdAt','updatedAt','status','level','suggestLevel','kind','cats',
                  'date','time','faculty','orgUnit','unit','subUnit','anon',
                  'injuryAxis','damageAxis','damageBaht','daysOff','monitor',
-                 'verbalAt','writtenAt','uniReportAt','facNotifyAt','ackAt','meetDate'];
+                 'verbalAt','writtenAt','uniReportAt','facNotifyAt','capaReportAt','ackAt','meetDate'];
 function maskSensitive_(x) {
   var m = { restricted:true, title:'(ข้อมูลอ่อนไหว — จำกัดการเข้าถึง)', detail:'',
             reporter:'(จำกัดการเข้าถึง)', reporterEmail:'', reporterPos:'',
@@ -1746,7 +1746,7 @@ function createIncident_(p) {
     confirmNote:'', causes:[], investNote:'', meetDate:'', meetPlace:'', capa:[], monitor:'', capaNote:'', deputyNote:'', monitorNote:'', reviewNote:'', ackNote:'', ackAt:'', closeNote:'',
     /* แจ้งด้วยวาจา = เวลาที่ผู้รายงานระบุว่าแจ้งหัวหน้างานจริง (ว่าง = ยังไม่ได้แจ้ง ให้หัวหน้างานบันทึกตอนยืนยันข้อเท็จจริง)
        ลายลักษณ์อักษร = เวลาที่ส่งรายงานนี้ในระบบ (รุ่น 2.8.45 — เดิมใช้เวลาส่งรายงานทั้งสองช่อง) */
-    verbalAt:verbalStamp_(p.verbalAt, date, p.time), writtenAt:ts, uniReportAt:'', facNotifyAt:'', files:[], version:1,
+    verbalAt:verbalStamp_(p.verbalAt, date, p.time), writtenAt:ts, uniReportAt:'', facNotifyAt:'', capaReportAt:'', files:[], version:1,
     log:[{ t:'บันทึกรายงานเข้าสู่ระบบ', by:rec_by_(u, p.anon), d:ts, hi:1 }]
   };
 
@@ -1950,6 +1950,10 @@ function advanceStatus_(id, to, payload) {
   if (to === 'investigating' && !r.facNotifyAt && facultyHasRole_('office_head', r.faculty) &&
       (facultyHasRole_('deputy_dean_sup', r.faculty) || facultyHasRole_('dean', r.faculty)))
     throw apiError_('CONFLICT','หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย ต้องรายงานรองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง ทราบก่อน จึงจะเริ่มประชุมสอบสวนได้');
+  /* รุ่น 2.8.53 — เหตุระดับ 3 ขึ้นไป คณบดี / ผู้อำนวยการกอง ต้องรายงานมหาวิทยาลัยก่อนเริ่มประชุมสอบสวน
+     บังคับเฉพาะหน่วยงานที่มีคณบดีในระบบ ไม่ให้เรื่องค้างที่ขั้นประเมินระดับเพราะยังไม่ได้กำหนดบทบาท */
+  if (to === 'investigating' && SEV_UNI[r.level] && !r.uniReportAt && facultyHasRole_('dean', r.faculty))
+    throw apiError_('CONFLICT','เหตุระดับ ' + r.level + ' คณบดี / ผู้อำนวยการกอง ต้องรายงาน' + SEV_UNI[r.level] + ' ก่อน จึงจะเริ่มประชุมสอบสวนได้');
   /* ตรวจข้อมูลบังคับตามขั้นที่เซิร์ฟเวอร์ แม้ผู้เรียกข้ามหน้าจอหรือแก้ request เอง */
   if(to==='investigating') {
     p.meetDate=validDate_(p.meetDate,'วันที่ประชุมสอบสวน');
@@ -2046,6 +2050,9 @@ function advanceStatus_(id, to, payload) {
        เรื่องจึงหลุดออกจากรายการค้างทั้งที่ขั้นตอนบังคับยังไม่ครบ */
     if(SEV_UNI[r.level]&&!r.uniReportAt)
       throw apiError_('CONFLICT','เหตุระดับ '+r.level+' ต้องให้คณบดี / ผู้อำนวยการกอง บันทึกการรายงาน'+SEV_UNI[r.level]+' ก่อน จึงจะปิดเรื่องได้');
+    /* รุ่น 2.8.53 — และต้องรายงานมาตรการแก้ไขและป้องกันต่อผู้บริหารมหาวิทยาลัยแล้ว */
+    if(SEV_UNI[r.level]&&!r.capaReportAt)
+      throw apiError_('CONFLICT','เหตุระดับ '+r.level+' ต้องให้คณบดี / ผู้อำนวยการกอง รายงานมาตรการแก้ไขและป้องกันต่อ'+SEV_UNI[r.level]+' ก่อน จึงจะปิดเรื่องได้');
   }
   /* ข้อความบันทึกไทม์ไลน์ ต้องมีครบทุกขั้น มิฉะนั้นชีตจะเก็บค่าว่าง */
   var nCapa = Array.isArray(p.capa) && p.capa.length ? p.capa
@@ -2110,6 +2117,15 @@ function advanceStatus_(id, to, payload) {
        ค่าที่หน้าจอส่งมาไม่มีผล เซิร์ฟเวอร์ตัดสินเองจากบทบาทผู้กดเท่านั้น */
     (to === 'reviewed' && u.role === 'dean') ? 'คณบดี / ผู้อำนวยการกอง ตรวจสอบแทนรองคณบดี (กำกับดูแล)' :
     officeFwd ? 'หัวหน้าสำนักงานเสนอคณบดี / ผู้อำนวยการกอง โดยตรง (ไม่มีรองคณบดี (กำกับดูแล))' : '');
+  /* รุ่น 2.8.53 — ปิดเรื่องเหตุระดับ 3 ขึ้นไปแล้ว แจ้งผู้บริหารมหาวิทยาลัยตามตารางระดับความรุนแรง
+     ส่งหลังบันทึกแล้ว อีเมลส่งไม่ออกไม่ทำให้การปิดเรื่องล้มเหลว แต่บันทึกไว้ใน Audit */
+  if (to === 'closed' && SEV_UNI[r.level]) {
+    var cs = uniMail_(r, u, 'ปิดเรื่องอุบัติการณ์แล้ว', [
+      'หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย ปิดเรื่องอุบัติการณ์นี้แล้ว',
+      'สรุปผลการดำเนินการ : ' + (isSensitive_(r.cats) ? '(ข้อมูลอ่อนไหว — เปิดดูในระบบ)' : (p.closeNote || '')),
+      'มาตรการ : ' + (Array.isArray(r.capa) ? r.capa.length : 0) + ' รายการ ดำเนินการแล้วเสร็จทั้งหมด'], 'แจ้งปิดเรื่องต่อผู้บริหารมหาวิทยาลัย', true);
+    return { status:to, uniNotified:cs.sent };
+  }
   return { status:to };
 }
 
@@ -2136,19 +2152,87 @@ function addSuggestion_(id, note, kind) {
   return { field:field, note:note };
 }
 
-function reportToUniversity_(id) {
+function reportToUniversity_(id, note) {
   var u = me_();
   need_(u, 'uniReport');
   var r = findScoped_(u, id);
   notCancelled_(r);
   if (!SEV_UNI[r.level]) throw apiError_('CONFLICT', 'ระดับนี้ยังไม่เข้าเกณฑ์ต้องรายงานมหาวิทยาลัยตามตารางระดับความรุนแรง');
   if (r.uniReportAt) throw apiError_('CONFLICT','เรื่องนี้บันทึกการรายงานมหาวิทยาลัยแล้วเมื่อ '+r.uniReportAt);
+  note = txt_(note, 1000).trim();
+  /* รุ่น 2.8.53 — ส่งอีเมลรายงานของคณบดีถึงผู้บริหารมหาวิทยาลัยด้วย (เดิมบันทึกเวลาอย่างเดียว)
+     ส่งก่อนบันทึก อีเมลส่งไม่ออก = ยังไม่ถือว่ารายงาน · ยังไม่มีผู้รับในระบบ = บันทึกได้ พร้อมระบุไว้ในไทม์ไลน์ */
+  var m = uniMail_(r, u, 'คณบดี / ผู้อำนวยการกอง รายงานอุบัติการณ์ระดับ ' + r.level, [
+    'คณบดี / ผู้อำนวยการกอง รายงานอุบัติการณ์ระดับ ' + r.level + ' ทันทีหลังทราบเหตุการณ์ ก่อนเริ่มประชุมสอบสวน',
+    note ? 'หมายเหตุ : ' + note : ''], 'รายงานมหาวิทยาลัย', false);
   r.uniReportAt = now_();
-  r.log.push({ t:'คณบดี / ผู้อำนวยการกอง รายงาน' + SEV_UNI[r.level] + ' ทันทีหลังทราบเหตุการณ์',
+  r.log.push({ t:'คณบดี / ผู้อำนวยการกอง รายงาน' + SEV_UNI[r.level] + ' ทันทีหลังทราบเหตุการณ์' +
+                 (m.sent ? '' : ' (ยังไม่มีผู้รับในระบบ — บันทึกเวลาไว้)') + (note ? ' · ' + note : ''),
                by:u.name + ' (' + u.position + ')', d:r.uniReportAt, hi:1 });
   updateIncident_(r);
-  audit_(u, 'รายงานมหาวิทยาลัย', id, 'ระดับ ' + r.level);
-  return { uniReportAt:r.uniReportAt };
+  audit_(u, 'รายงานมหาวิทยาลัย', id, 'ระดับ ' + r.level + ' · ผู้รับ ' + m.sent + ' คน');
+  return { uniReportAt:r.uniReportAt, recipients:m.sent };
+}
+
+/* รุ่น 2.8.53 — คณบดี / ผู้อำนวยการกอง รายงานมาตรการแก้ไขและป้องกันต่อผู้บริหารมหาวิทยาลัยรับทราบ
+   ทำได้หลังคณบดีรับทราบผลการดำเนินการแล้ว (ขั้นรอปิดเรื่อง) เฉพาะเหตุระดับ 3 ขึ้นไป และต้องทำก่อนปิดเรื่อง */
+function reportCapaToUniversity_(id, note) {
+  var u = me_();
+  need_(u, 'uniReport');
+  var r = notCancelled_(findScoped_(u, id));
+  if (!SEV_UNI[r.level]) throw apiError_('CONFLICT', 'ระดับนี้ยังไม่เข้าเกณฑ์ต้องรายงานมหาวิทยาลัยตามตารางระดับความรุนแรง');
+  if (r.status !== 'acknowledged') throw apiError_('CONFLICT', 'รายงานมาตรการต่อมหาวิทยาลัยได้หลังคณบดี / ผู้อำนวยการกอง รับทราบผลการดำเนินการแล้ว และก่อนปิดเรื่อง');
+  if (r.capaReportAt) throw apiError_('CONFLICT', 'เรื่องนี้รายงานมาตรการต่อมหาวิทยาลัยแล้วเมื่อ ' + r.capaReportAt);
+  note = txt_(note, 1000).trim();
+  var capa = Array.isArray(r.capa) ? r.capa : [];
+  var lines = isSensitive_(r.cats) ? ['มาตรการ : ' + capa.length + ' รายการ (ข้อมูลอ่อนไหว — เปิดดูในระบบ)']
+    : ['มาตรการแก้ไขและป้องกัน ' + capa.length + ' รายการ'].concat(capa.map(function (c, i) {
+        return '  ' + (i + 1) + '. ' + c.m + ' — ' + c.who + (c.done ? ' · แล้วเสร็จ ' + (c.doneAt || '') : ' · ยังไม่เสร็จ');
+      }));
+  var m = uniMail_(r, u, 'รายงานมาตรการแก้ไขและป้องกัน', [
+    'คณบดี / ผู้อำนวยการกอง รายงานมาตรการแก้ไขและป้องกันไม่ให้เกิดซ้ำ เพื่อโปรดทราบ', ''].concat(lines)
+    .concat(note ? ['', 'ความเห็นคณบดี : ' + note] : []), 'รายงานมาตรการต่อมหาวิทยาลัย', false);
+  r.capaReportAt = now_();
+  r.log.push({ t:'คณบดี / ผู้อำนวยการกอง รายงานมาตรการแก้ไขและป้องกันต่อ' + SEV_UNI[r.level] + ' รับทราบ' +
+                 (m.sent ? '' : ' (ยังไม่มีผู้รับในระบบ — บันทึกเวลาไว้)') + (note ? ' · ' + note : ''),
+               by:u.name + ' (' + u.position + ')', d:r.capaReportAt, hi:1 });
+  updateIncident_(r);
+  audit_(u, 'รายงานมาตรการต่อมหาวิทยาลัย', id, 'ระดับ ' + r.level + ' · ผู้รับ ' + m.sent + ' คน');
+  return { capaReportAt:r.capaReportAt, recipients:m.sent };
+}
+
+/* ผู้รับระดับมหาวิทยาลัยตามตารางระดับความรุนแรง: ระดับ 3 รองอธิการบดี (กำกับดูแล) · ระดับ 4–5 เพิ่มอธิการบดี
+   ใช้ UNIVERSITY_NOTIFY_MIN_LEVEL ชุดเดียวกับ notify_ แต่ไม่รวมกองอาคารสถานที่ (รายงานนี้เป็นของคณบดีถึงผู้บริหาร) */
+function uniLeaders_(level) {
+  return readAll_('Users').filter(function (x) {
+    return x.active && (x.role === 'vice_president_sup' || x.role === 'president') &&
+           level >= (UNIVERSITY_NOTIFY_MIN_LEVEL[x.role] || CONFIG.NOTIFY_LEVEL);
+  });
+}
+/* ส่งอีเมลถึงผู้บริหารมหาวิทยาลัยของเรื่องหนึ่ง คืน { sent:จำนวนผู้รับ }
+   soft=true: อีเมลล้มเหลวไม่โยนข้อผิดพลาด (ใช้หลังปิดเรื่องซึ่งบันทึกไปแล้ว) · soft=false: โยนให้ผู้ใช้กดซ้ำได้ */
+function uniMail_(r, u, subject, lines, act, soft) {
+  var to = uniLeaders_(Number(r.level) || 0);
+  if (!to.length) return { sent:0 };
+  var body = [
+    'เลขที่      : ' + r.id,
+    'เรื่อง       : ' + mailTitle_(r),
+    'คณะ/หน่วยงาน : ' + r.faculty + ' / ' + r.orgUnit,
+    'วันเวลา     : ' + r.date + ' ' + r.time,
+    'ระดับ       : ' + r.level,
+    'ดำเนินการโดย : ' + u.name + ' (' + u.position + ')',
+    ''].concat(lines.filter(function (x) { return x !== null && x !== undefined; }))
+    .concat(['', 'เปิดเรื่องนี้ในระบบ: ' + appUrl_() + '?incident=' + encodeURIComponent(r.id)]).join('\n');
+  try {
+    MailApp.sendEmail({ to:to.map(function (x) { return x.email; }).join(','),
+      subject:'[' + CONFIG.SYSTEM_NAME + '] ' + subject + ' — ' + r.id, body:body });
+  } catch (e) {
+    try { audit_(u, 'ส่งอีเมลแจ้งเตือนไม่สำเร็จ', r.id, act + ' · ' + String(e && e.message || e).slice(0, 200), 'FAILED', 'MAIL_FAILED'); } catch (ignore) {}
+    if (soft) return { sent:0 };
+    throw apiError_('CONFLICT', 'ส่งอีเมลรายงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+  }
+  if (soft) { try { audit_(u, 'ส่งอีเมลแจ้งเตือน', r.id, act + ' · ผู้รับ ' + to.length + ' คน'); } catch (ignore2) {} }
+  return { sent:to.length };
 }
 
 /* ยกเลิกรายงานที่ส่งผิด ทำได้ทุกขั้นตอน
