@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.45';
+var APP_VERSION = '2.8.46';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -219,7 +219,7 @@ var OVERDUE_UNIVERSITY_ROLES = ['facility'];
 /* ผู้รับแจ้งเตือนระดับมหาวิทยาลัยของเหตุระดับ 3 ขึ้นไป */
 var UNIVERSITY_NOTIFY_ROLES = ['facility','vice_president_sup','president'];
 /* ระดับต่ำสุดที่แจ้งแต่ละบทบาทระดับมหาวิทยาลัย ตามตารางระดับความรุนแรง (SEV_UNI) — รุ่น 2.8.12
-   ระดับ 3 รายงานรองอธิการบดีที่เกี่ยวข้อง · ระดับ 4–5 รายงานรองอธิการบดีและอธิการบดี
+   ระดับ 3 รายงานรองอธิการบดี (กำกับดูแล) · ระดับ 4–5 รายงานรองอธิการบดีและอธิการบดี
    บทบาทที่ไม่อยู่ในตารางนี้ใช้ CONFIG.NOTIFY_LEVEL */
 var UNIVERSITY_NOTIFY_MIN_LEVEL = { president:4 };
 /* ผู้รับสำรองเมื่อคณะยังไม่มีผู้ถือบทบาทข้างต้นเลย — อีเมลแจ้งเตือนต้องไม่เงียบหาย */
@@ -254,7 +254,7 @@ function sameFaculty_(a, b) { return canonUnit_(a) === canonUnit_(b); }
 /* หน่วยงานในคณะใช้กติกาเดียวกับคณะ — ช่องว่างหัวท้ายในชีตต้องไม่ทำให้คนหน่วยเดียวกันมองไม่เห็นเรื่องของกัน */
 function sameOrgUnit_(a, b) { return String(a || '').trim() === String(b || '').trim(); }
 
-var SEV_UNI = { 3:'รองอธิการบดีที่เกี่ยวข้อง', 4:'รองอธิการบดีที่เกี่ยวข้องและอธิการบดี', 5:'รองอธิการบดีที่เกี่ยวข้องและอธิการบดี' };
+var SEV_UNI = { 3:'รองอธิการบดี (กำกับดูแล)', 4:'รองอธิการบดี (กำกับดูแล) และอธิการบดี', 5:'รองอธิการบดี (กำกับดูแล) และอธิการบดี' };
 var STATUS_ORDER = ['submitted','confirmed','assessed','investigating','capa','monitoring','reviewed','acknowledged','closed'];
 /* 'cancelled' อยู่นอกลำดับขั้น เข้าได้จากทุกขั้นและออกไม่ได้ จึงไม่อยู่ใน STATUS_ORDER */
 var CANCELLED = 'cancelled';
