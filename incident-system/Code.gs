@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.46';
+var APP_VERSION = '2.8.47';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -1301,7 +1301,7 @@ function scoped_(u, list) {
   }
   else {
     out = list.filter(function (x) { return inScope_(u, x); });
-    /* หัวหน้างาน/หัวหน้ากลุ่มสาขา/หัวหน้าภาค (facReport · รุ่น 2.8.31) — Dashboard รายงานภาพรวมของทั้งคณะ
+    /* หัวหน้างาน/หัวหน้ากลุ่มสาขา/หัวหน้าภาควิชา (facReport · รุ่น 2.8.31) — Dashboard รายงานภาพรวมของทั้งคณะ
        เรื่องของหน่วยงานอื่นในคณะเดียวกันส่งไปเป็นแถวสรุป (summaryOnly) ทุกระดับ มีเฉพาะตัวเลขที่ใช้นับ
        ไม่มีชื่อเรื่อง เนื้อหา ผู้รายงาน สถานที่ หรือบันทึก — เปิดรายละเอียดหรือแก้ไขไม่ได้ */
     if (role.facReport && role.scope === 'orgUnit') {
