@@ -903,7 +903,7 @@ function normalizeIncident(r){
  out.capa=out.capa.map(x=>({m:x.m||"",who:x.who||"",due:x.due||"",done:!!x.done,doneAt:x.doneAt||""}));
  out.verbalAt=out.verbalAt||"";
  out.writtenAt=out.writtenAt||"";
- out.uniReportAt=out.uniReportAt||""; out.cancelledAt=out.cancelledAt||""; out.cancelNote=out.cancelNote||"";
+ out.uniReportAt=out.uniReportAt||""; out.facNotifyAt=out.facNotifyAt||""; out.cancelledAt=out.cancelledAt||""; out.cancelNote=out.cancelNote||"";
  out.restricted=!!out.restricted;
  if(!STATUS[out.status])out.status=out.level?"assessed":"submitted";
  if(!out.log.length)out.log=[{t:"บันทึกรายงานเข้าสู่ระบบ",by:out.anon?"ผู้รายงาน (ไม่ระบุชื่อ)":out.reporter,d:out.date?thDate(out.date)+" "+(out.time||""):"—",hi:1}];
@@ -1057,7 +1057,7 @@ const STATUS={
  investigating:{label:"อยู่ระหว่างสอบสวน",cls:"st-inv",step:4},
  capa:{label:"กำหนดมาตรการแก้ไขและป้องกัน",cls:"st-inv",step:5},
  monitoring:{label:"ติดตามมาตรการ",cls:"st-fix",step:6},
- reviewed:{label:"รองคณบดี (กำกับดูแล) ตรวจสอบแล้ว รอคณบดีรับทราบ",cls:"st-fix",step:7},
+ reviewed:{label:"ตรวจสอบผลการติดตามแล้ว รอคณบดีรับทราบ",cls:"st-fix",step:7},
  acknowledged:{label:"คณบดี / ผู้อำนวยการกอง รับทราบแล้ว รอปิดเรื่อง",cls:"st-fix",step:8},
  closed:{label:"ปิดเรื่อง",cls:"st-close",step:9},
  /* ยกเลิกอยู่นอกลำดับขั้น เข้าได้จากทุกขั้นและออกไม่ได้ */
@@ -1086,7 +1086,7 @@ const ROLES={
   can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0}},
  office_head:{name:"หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย",short:"หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย",code:"OFFICE_HEAD",scope:"faculty",sensitiveAccess:1,
   desc:"ผู้รับผิดชอบหลักของคณะ ประเมินระดับความรุนแรง ดำเนินการสอบสวน กำหนดและติดตามมาตรการ จนถึงปิดมาตรการแก้ไข",
-  can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1}},
+  can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1,facNotify:1}},
  deputy_dean_sup:{name:"รองคณบดี (กำกับดูแล)",short:"รองคณบดี (กำกับดูแล)",code:"DEPUTY_DEAN_SUP",scope:"faculty",sensitiveAccess:1,
   desc:"รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัยของคณะ ร่วมประเมิน สอบสวน ให้ข้อเสนอแนะ บันทึกผลการติดตามและปิดมาตรการ และตรวจสอบผลการติดตามมาตรการ",
   can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:1,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1}},
@@ -1140,7 +1140,7 @@ let INCIDENTS=[];
 let ME=null,PAGE="dash",CURRENT=null,ROLE_COVERAGE=[];
 /* เลขรุ่นของไฟล์ Index.html ต้องตรงกับ APP_VERSION ใน Code.gs (รุ่น 2.8.28)
    แสดงใต้ชื่อผู้ใช้ เพื่อตรวจได้ทันทีว่าเว็บที่ Deploy ใช้ไฟล์รุ่นไหน ถ้าไม่ตรงกับเซิร์ฟเวอร์จะขึ้นคำเตือน */
-const CLIENT_VERSION="2.8.50";
+const CLIENT_VERSION="2.8.51";
 let SERVER_VERSION="";
 let DASH_FACULTY="",DASH_ORGUNIT="",DASH_YEAR="";
 /* audit() บันทึกที่ฝั่งเซิร์ฟเวอร์เสมอ (ดู audit_ ใน Code.gs) ฟังก์ชันนี้ถูกกำหนดเป็น no-op ในชั้นเชื่อมต่อเซิร์ฟเวอร์ด้านล่าง
@@ -1334,6 +1334,10 @@ function hasSafetyCommittee(faculty){return hasRoleInFaculty("safety_committee",
 /* คณะที่ยังไม่ได้กำหนดรองคณบดี (กำกับดูแล) ให้คณบดีตรวจสอบผลการติดตามแทนได้
    เรื่องจะได้ไม่ค้างที่ขั้นตรวจสอบจนปิดไม่ได้ */
 function needsReviewFallback(r){return !hasRoleInFaculty("deputy_dean_sup",facultyOf(r))}
+/* รุ่น 2.8.51 — ต้องรายงานรองคณบดี (กำกับดูแล) และคณบดี ทราบก่อนเริ่มสอบสวน เฉพาะหน่วยงานที่มีหัวหน้าสำนักงานในระบบ
+   ตรงกับที่เซิร์ฟเวอร์ตรวจใน advanceStatus_ */
+function needsFacNotify(r){const f=facultyOf(r);return !r.facNotifyAt&&hasRoleInFaculty("office_head",f)&&(hasRoleInFaculty("deputy_dean_sup",f)||hasRoleInFaculty("dean",f))}
+function facNotifyWho(r){return needsReviewFallback(r)?"คณบดี / ผู้อำนวยการกอง":"รองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง"}
 function overdueCapa(){
  const today=localToday();
  return active(visible(INCIDENTS)).filter(x=>x.status!=="closed"&&(x.capa||[]).some(c=>!c.done&&c.due&&c.due<today));
@@ -2693,7 +2697,12 @@ function pgDetail(){
  /* แก้ไขข้อมูลที่ผู้รายงานกรอกผิด แทนการยกเลิกทั้งเรื่อง — เซิร์ฟเวอร์ตรวจสิทธิ์ edit และช่องที่แก้ได้ซ้ำ */
  if(c.edit&&r.status!=="closed")acts.push(`<button class="btn" onclick="openEditReport('${r.id}')">แก้ไขข้อมูลรายงาน</button>`);
  if(c.uniReport&&L>=3&&!r.uniReportAt)acts.push(`<button class="btn btn-d" onclick="doUni('${r.id}')">รายงาน${SEV[L].uni}</button>`);
- if(c.investigate&&r.status==="assessed")acts.push(`<button class="btn" onclick="doStep('${r.id}','investigating')">เริ่มประชุมสอบสวน</button>`);
+ /* รุ่น 2.8.51 — หัวหน้าสำนักงานรายงานรองคณบดี (กำกับดูแล) และคณบดี ทราบ ก่อนเริ่มประชุมสอบสวน */
+ if(c.facNotify&&r.status==="assessed"&&needsFacNotify(r))acts.push(`<button class="btn btn-p" onclick="openFacNotify('${r.id}')">รายงาน${facNotifyWho(r)}ทราบ</button>`);
+ if(c.investigate&&r.status==="assessed"){
+  if(needsFacNotify(r))acts.push(`<button class="btn" onclick="toast('หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย ต้องรายงาน${facNotifyWho(r)}ทราบก่อน จึงจะเริ่มประชุมสอบสวนได้')">รอรายงานผู้บริหารก่อนสอบสวน</button>`);
+  else acts.push(`<button class="btn" onclick="doStep('${r.id}','investigating')">เริ่มประชุมสอบสวน</button>`);
+ }
  /* ขั้นกำหนดมาตรการเปิดซ้ำได้ตลอดที่ยังไม่เริ่มติดตาม เพื่อแก้ชื่อผู้รับผิดชอบหรือวันครบกำหนดที่พิมพ์ผิด
     เดิมปุ่มขึ้นเฉพาะตอนสถานะ investigating พอบันทึกครั้งแรกก็แก้ไม่ได้อีกเลย
     วันครบกำหนดที่พิมพ์ปีผิดจะค้างเป็น "เกินกำหนด" ในทุกหน้าจอตลอดไป */
@@ -2710,6 +2719,10 @@ function pgDetail(){
   acts.push(`<button class="btn ${leftNow?"btn-p":""}" onclick="openMonitor('${r.id}')">บันทึกผลการติดตามเพิ่มเติม${leftNow?" ("+leftNow+" รายการค้าง)":""}</button>`);
  }
  const reviewSub=ME.role==="dean"&&needsReviewFallback(r);   // คณบดีตรวจสอบแทนเมื่อคณะยังไม่มีรองคณบดี (กำกับดูแล)
+ /* รุ่น 2.8.51 — หน่วยงานที่ไม่มีรองคณบดี (กำกับดูแล) หัวหน้าสำนักงานเสนอคณบดี / ผู้อำนวยการกอง รับทราบได้เลย */
+ const officeFwd=ME.role==="office_head"&&needsReviewFallback(r);
+ if(officeFwd&&r.status==="monitoring"&&r.capa.length&&!r.capa.some(x=>!x.done))
+  acts.push(`<button class="btn btn-p" onclick="openReview('${r.id}')">เสนอคณบดี / ผู้อำนวยการกอง รับทราบ</button>`);
  if(c.review&&r.status==="monitoring"&&(ME.role!=="dean"||reviewSub))
   acts.push(`<button class="btn btn-p" onclick="doStep('${r.id}','reviewed')">ตรวจสอบผลการติดตามมาตรการ${reviewSub?" (แทนรองคณบดี)":""}</button>`);
  if(c.ack&&r.status==="reviewed")acts.push(`<button class="btn btn-p" onclick="doStep('${r.id}','acknowledged')">คณบดี / ผู้อำนวยการกอง รับทราบผลการดำเนินการ</button>`);
@@ -2722,9 +2735,10 @@ function pgDetail(){
  if(c.close&&r.status==="acknowledged"&&L>=3&&!r.uniReportAt)acts.push(`<button class="btn" onclick="toast('เหตุระดับ ${L} ต้องให้คณบดี / ผู้อำนวยการกอง บันทึกการรายงาน${SEV[L].uni}ก่อน จึงจะปิดเรื่องได้')">รอรายงานมหาวิทยาลัย</button>`);
  else if(c.close&&r.status==="acknowledged")acts.push(`<button class="btn btn-p" onclick="doStep('${r.id}','closed')">ปิดเรื่อง</button>`);
  /* ข้อความรอต้องบอกสิ่งที่ค้างจริงในขั้นนั้น ไม่ใช่บอกว่ารอคณบดีทั้งที่ความจริงมาตรการยังไม่เสร็จ */
- if(c.close&&r.status==="monitoring"){
+ if(c.close&&r.status==="monitoring"&&!(officeFwd&&r.capa.length&&!r.capa.some(x=>!x.done))){
   const leftClose=r.capa.filter(x=>!x.done).length;
-  acts.push(`<button class="btn" onclick="toast(${leftClose
+  if(officeFwd)acts.push(`<button class="btn" onclick="toast('ยังมีมาตรการที่ไม่แล้วเสร็จ ${leftClose} รายการ บันทึกผลการติดตามให้ครบก่อน จึงจะเสนอคณบดี / ผู้อำนวยการกอง รับทราบได้')">มาตรการยังไม่ครบ</button>`);
+  else acts.push(`<button class="btn" onclick="toast(${leftClose
     ?`'ยังมีมาตรการที่ไม่แล้วเสร็จ ${leftClose} รายการ บันทึกผลการติดตามให้ครบก่อน จึงจะส่งรองคณบดี (กำกับดูแล) ตรวจสอบได้'`
     :`'เรื่องนี้รอรองคณบดี (กำกับดูแล) ตรวจสอบผลการติดตาม แล้วจึงเสนอคณบดี / ผู้อำนวยการกอง รับทราบก่อนปิดเรื่อง'`})">${leftClose?"มาตรการยังไม่ครบ":"รอรองคณบดีตรวจสอบ"}</button>`);
  }
@@ -2864,6 +2878,8 @@ function pgDetail(){
         <small>${r.verbalAt?"เวลาที่แจ้งด้วยวาจาตามสายบังคับบัญชา":"หัวหน้างานบันทึกเวลาที่รับแจ้งได้ตอนยืนยันข้อเท็จจริง"}</small></div>
       <div class="${r.writtenAt&&(wm===null||wm<=wl)?"ok":"late"}"><b>ลายลักษณ์อักษร ${S.writtenTxt}</b><span>${stamp(r.writtenAt)?stamp(r.writtenAt)+dueText(wm,wl):"ยังไม่บันทึก"}</span>
         <small>เวลาที่ส่งรายงานนี้ในระบบ</small></div>`;})()}
+     ${r.facNotifyAt||(r.status==="assessed"&&needsFacNotify(r))?`<div class="${r.facNotifyAt?"ok":"late"}"><b>รายงาน${facNotifyWho(r)}ทราบ ก่อนสอบสวน</b><span>${stamp(r.facNotifyAt)||"ยังไม่ได้รายงาน"}</span>
+        <small>หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย เป็นผู้รายงาน</small></div>`:""}
      ${S.uni?`<div class="${r.uniReportAt?"ok":"late"}"><b>รายงานมหาวิทยาลัย ทันที</b><span>${stamp(r.uniReportAt)||"ยังไม่ได้รายงาน"}</span></div>`:""}
     </div>
     <div class="hint-t" style="margin-top:10px">ระยะเวลาการสอบสวน: ${S.investTxt}</div>
@@ -2931,18 +2947,45 @@ function openReview(id){
  const r=INCIDENTS.find(x=>x.id===id); if(!r)return toast("ไม่พบรายงานนี้");
  const left=r.capa.filter(x=>!x.done);
  const sub=ME.role==="dean"&&needsReviewFallback(r);
- ovlShell("ตรวจสอบผลการติดตามมาตรการ",
-  sub?"คณะนี้ยังไม่ได้กำหนดผู้ใช้ในบทบาทรองคณบดี (กำกับดูแล) คณบดี / ผู้อำนวยการกอง จึงตรวจสอบผลการติดตามแทนได้ ระบบจะบันทึกไว้ว่าเป็นการตรวจสอบแทน"
+ const fwd=ME.role==="office_head"&&needsReviewFallback(r);
+ ovlShell(fwd?"เสนอคณบดี / ผู้อำนวยการกอง รับทราบ":"ตรวจสอบผลการติดตามมาตรการ",
+  fwd?"หน่วยงานนี้ไม่มีรองคณบดี (กำกับดูแล) หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย จึงเสนอผลการติดตามมาตรการต่อคณบดี / ผู้อำนวยการกอง ได้โดยตรง"
+  :sub?"คณะนี้ยังไม่ได้กำหนดผู้ใช้ในบทบาทรองคณบดี (กำกับดูแล) คณบดี / ผู้อำนวยการกอง จึงตรวจสอบผลการติดตามแทนได้ ระบบจะบันทึกไว้ว่าเป็นการตรวจสอบแทน"
    :"โปรดตรวจสอบว่ามาตรการดำเนินการครบถ้วนและได้ผลตามที่กำหนด ก่อนเสนอคณบดี / ผู้อำนวยการกอง รับทราบ",
   `<dl class="kv" style="margin-bottom:14px">
     <dt>มาตรการ</dt><dd>${r.capa.length} รายการ · เสร็จแล้ว ${r.capa.length-left.length} รายการ</dd>
    </dl>
    ${monHistoryHtml(r)}
    ${left.length?`<div class="note crit" style="margin-bottom:14px">ยังมีมาตรการที่ยังไม่แล้วเสร็จ ${left.length} รายการ<br>${left.map(x=>"· "+esc(x.m)+" ("+esc(x.who)+")").join("<br>")}</div>`:`<div class="note ok" style="margin-bottom:14px">มาตรการทุกรายการดำเนินการแล้วเสร็จ</div>`}
-   <div class="fld"><label class="f req">ผลการตรวจสอบ</label>
-    <textarea id="rv_note" placeholder="ความเห็นต่อผลการติดตาม เช่น ครบถ้วนเหมาะสม หรือประเด็นที่ต้องดำเนินการเพิ่มเติมก่อนปิดเรื่อง">${esc(r.reviewNote)||""}</textarea></div>
+   <div class="fld"><label class="f req">${fwd?"สรุปผลการติดตามเสนอคณบดี / ผู้อำนวยการกอง":"ผลการตรวจสอบ"}</label>
+    <textarea id="rv_note" placeholder="${fwd?"สรุปผลการดำเนินมาตรการ เช่น ดำเนินการครบทุกรายการแล้ว ได้ผลตามที่กำหนด":"ความเห็นต่อผลการติดตาม เช่น ครบถ้วนเหมาะสม หรือประเด็นที่ต้องดำเนินการเพิ่มเติมก่อนปิดเรื่อง"}">${esc(r.reviewNote)||""}</textarea></div>
    <label class="ckline"><input type="checkbox" id="rv_ok"> ข้าพเจ้าได้ตรวจสอบผลการติดตามมาตรการแล้ว</label>`,
-  `<button class="btn btn-p" onclick="submitReview('${id}')">บันทึกผลการตรวจสอบ</button>`);
+  `<button class="btn btn-p" onclick="submitReview('${id}')">${fwd?"เสนอคณบดี / ผู้อำนวยการกอง รับทราบ":"บันทึกผลการตรวจสอบ"}</button>`);
+}
+/* ---------- รุ่น 2.8.51 หัวหน้าสำนักงานรายงานรองคณบดี (กำกับดูแล) และคณบดี ทราบ ก่อนสอบสวน ---------- */
+function openFacNotify(id){
+ const r=INCIDENTS.find(x=>x.id===id); if(!r)return toast("ไม่พบรายงานนี้");
+ const who=facNotifyWho(r);
+ ovlShell("รายงาน"+who+"ทราบ",
+  "ระบบจะส่งอีเมลแจ้ง"+who+"ของหน่วยงาน พร้อมลิงก์เปิดเรื่องนี้ และบันทึกเวลาที่รายงานไว้ในประวัติการดำเนินงาน เมื่อรายงานแล้วจึงเริ่มประชุมสอบสวนได้",
+  `<dl class="kv" style="margin-bottom:14px">
+    <dt>เลขที่</dt><dd class="mono">${esc(r.id)}</dd>
+    <dt>เรื่อง</dt><dd>${esc(r.title)}</dd>
+    <dt>ระดับ</dt><dd>${r.level||"-"}</dd>
+   </dl>
+   ${needsReviewFallback(r)?`<div class="note" style="margin-bottom:14px">หน่วยงานนี้ไม่มีรองคณบดี (กำกับดูแล) ในระบบ จึงรายงานคณบดี / ผู้อำนวยการกอง โดยตรง</div>`:""}
+   <div class="fld"><label class="f">หมายเหตุ (ถ้ามี)</label>
+    <textarea id="fn_note" maxlength="1000" placeholder="เช่น กำหนดประชุมสอบสวนวันที่ ... หรือข้อมูลเพิ่มเติมที่ผู้บริหารควรทราบ"></textarea></div>`,
+  `<button class="btn btn-p" onclick="submitFacNotify('${id}')">ส่งรายงาน</button>`);
+}
+function submitFacNotify(id){
+ const note=(document.getElementById("fn_note").value||"").trim();
+ closeStepOvl();
+ busy(true,"กำลังส่งรายงาน…");
+ srv('notifyFaculty',[id,note],function(res){
+  toast("รายงาน"+(res&&res.deanOnly?"คณบดี / ผู้อำนวยการกอง":"รองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง")+"ทราบแล้ว ("+((res&&res.recipients)||0)+" คน) เริ่มประชุมสอบสวนได้");
+  reload(function(){ go('detail', id); });
+ });
 }
 function submitReview(id){
  if(!document.getElementById("rv_ok").checked)return toast("กรุณาติ๊กยืนยันว่าได้ตรวจสอบผลการติดตามแล้ว");
@@ -3953,7 +3996,7 @@ var API_ACTION_MAP = {
   getAuthConfig:'auth.config', authDiagnose:'auth.diagnose',
   getBootstrap:'auth.bootstrap', registerSelf:'auth.register', refresh:'incident.list',
   createIncident:'incident.create', assessIncident:'incident.assess', advanceStatus:'incident.transition',
-  addSuggestion:'incident.suggest', reportToUniversity:'incident.reportUniversity', cancelIncident:'incident.cancel',
+  addSuggestion:'incident.suggest', reportToUniversity:'incident.reportUniversity', notifyFaculty:'incident.notifyFaculty', cancelIncident:'incident.cancel',
   returnIncident:'incident.return', editIncident:'incident.edit',
   uploadAttachment:'attachment.upload', adminListUsers:'admin.user.list', adminSaveUser:'admin.user.update',
   adminDeleteUser:'admin.user.delete', adminUsersSource:'admin.user.source',
@@ -3984,6 +4027,7 @@ function apiPayload(fn,a){
     case 'advanceStatus':       return {incidentId:a[0], to:a[1], data:a[2]||{}};
     case 'addSuggestion':       return {incidentId:a[0], note:a[1], kind:a[2]||'office'};
     case 'reportToUniversity':  return {incidentId:a[0]};
+    case 'notifyFaculty':       return {incidentId:a[0], note:a[1]||''};
     case 'cancelIncident':      return {incidentId:a[0], note:a[1]};
     case 'returnIncident':      return {incidentId:a[0], note:a[1]};
     case 'editIncident':        return {incidentId:a[0], fields:a[1]||{}, note:a[2]};
@@ -3996,7 +4040,7 @@ function apiPayload(fn,a){
 function incidentVersionFor(fn,args){
   /* คำสั่งที่แก้ไขเรื่องเดิมทุกตัวต้องแนบเลขเวอร์ชันไปด้วย ไม่งั้น gateway ปฏิเสธตั้งแต่ประตูหน้า
     ลืมใส่ชื่อคำสั่งใหม่ในรายการนี้ = คำสั่งนั้นใช้ไม่ได้เลย แม้โค้ดฝั่งเซิร์ฟเวอร์จะถูกต้อง */
- if(['assessIncident','advanceStatus','addSuggestion','reportToUniversity','cancelIncident','returnIncident','editIncident'].indexOf(fn)<0)return null;
+ if(['assessIncident','advanceStatus','addSuggestion','reportToUniversity','notifyFaculty','cancelIncident','returnIncident','editIncident'].indexOf(fn)<0)return null;
   var id=args&&args[0], r=(INCIDENTS||[]).find(function(x){return String(x.id)===String(id)});
   if(!r)return null;
   /* เรื่องที่บันทึกไว้ก่อนมีคอลัมน์ version อ่านได้เป็น 0 ต้องส่ง 1 ให้ตรงกับค่าเริ่มต้นฝั่งเซิร์ฟเวอร์

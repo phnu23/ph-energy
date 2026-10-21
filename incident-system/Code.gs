@@ -118,7 +118,7 @@ var SHEETS = {
                'activity','course','involved',
                'injuryAxis','damageAxis','damageBaht','parts','treat','daysOff','assets','firstAid',
                'confirmNote','causes','investNote','meetDate','meetPlace','capa','monitor','capaNote','deputyNote','monitorNote','monitorLog','reviewNote','ackNote','ackAt','closeNote',
-               'verbalAt','writtenAt','uniReportAt','files','log',
+               'verbalAt','writtenAt','uniReportAt','facNotifyAt','files','log',
                'cancelledAt','cancelNote','version'],
   Users     : ['email','name','position','faculty','orgUnit','unit','role','active','createdAt','approvedAt'],
   /* ทะเบียนจำนวนบุคลากรรายหน่วยงาน — ตัวหารของ IFR / PDFR / ISR
@@ -133,7 +133,7 @@ var SHEETS = {
   Attachments: ['attachmentId','driveFileId','ownerEmail','uploadToken','name','mimeType','size','status','incidentId','createdAt','expiresAt']
 };
 
-var APP_VERSION = '2.8.50';
+var APP_VERSION = '2.8.51';
 var ALLOWED_MIME = {
   'image/jpeg':1, 'image/png':1, 'image/webp':1,
   'application/pdf':1,
@@ -177,7 +177,7 @@ var ROLES = {
   reporter         : { scope:'own',     can:{create:1,confirm:0,assess:0,investigate:0,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
   supervisor       : { scope:'orgUnit', facReport:1, can:{create:1,confirm:1,assess:0,investigate:1,capa:0,uniReport:0,ack:0,monitor:0,close:0,cross:0,exportAll:0,safetyIndex:0,cancel:0,admin:0} },
   /* edit = แก้ไขข้อมูลที่ผู้รายงานกรอก (editIncident_) — หัวหน้าสำนักงาน รองคณบดี (กำกับดูแล) และผู้ดูแลระบบ */
-  office_head      : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1} },
+  office_head      : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:1,suggest:1,suggestSup:0,review:0,uniReport:0,ack:0,monitor:1,close:1,cross:0,exportAll:1,safetyIndex:0,cancel:1,admin:0,edit:1,headcount:1,facNotify:1} },
   /* รองคณบดีที่ได้รับมอบหมายให้กำกับดูแลงานความปลอดภัย ร่วมดำเนินการได้
      ตั้งแต่รุ่น 2.8.13 บันทึกผลการติดตามและปิด (ติ๊กแล้วเสร็จ) มาตรการได้เช่นเดียวกับหัวหน้าสำนักงาน (monitor) */
   deputy_dean_sup  : { scope:'faculty', sensitiveAccess:1, can:{create:1,confirm:1,assess:1,investigate:1,capa:0,suggest:0,suggestSup:1,review:1,uniReport:0,ack:0,monitor:1,close:0,cross:0,exportAll:1,safetyIndex:0,cancel:0,admin:0,edit:1,headcount:1} },
@@ -295,7 +295,7 @@ var STATUS_LABEL = {
   submitted:'รอหัวหน้างานยืนยันข้อเท็จจริง', confirmed:'ยืนยันข้อเท็จจริงแล้ว รอประเมินระดับ',
   assessed:'ประเมินระดับแล้ว รอสอบสวน', investigating:'อยู่ระหว่างสอบสวน',
   capa:'กำหนดมาตรการแก้ไขและป้องกัน', monitoring:'ติดตามมาตรการ',
-  reviewed:'รองคณบดี (กำกับดูแล) ตรวจสอบแล้ว รอคณบดีรับทราบ',
+  reviewed:'ตรวจสอบผลการติดตามแล้ว รอคณบดีรับทราบ',
   acknowledged:'คณบดี / ผู้อำนวยการกอง รับทราบแล้ว รอปิดเรื่อง', closed:'ปิดเรื่อง',
   cancelled:'ยกเลิกรายงาน'
 };
@@ -1020,7 +1020,7 @@ function hydrate_(o) {
   o.version = Number(o.version) || 1;
   ['date','meetDate'].forEach(function (k) { o[k] = fmtDate_(o[k]); });
   o.time = fmtTime_(o.time);
-  ['createdAt','updatedAt','ackAt','verbalAt','writtenAt','uniReportAt','cancelledAt']
+  ['createdAt','updatedAt','ackAt','verbalAt','writtenAt','uniReportAt','facNotifyAt','cancelledAt']
     .forEach(function (k) { o[k] = fmtStamp_(o[k]); });
   return o;
 }
@@ -1390,7 +1390,7 @@ function statStub_(x) {
 var MASK_KEEP = ['id','createdAt','updatedAt','status','level','suggestLevel','kind','cats',
                  'date','time','faculty','orgUnit','unit','subUnit','anon',
                  'injuryAxis','damageAxis','damageBaht','daysOff','monitor',
-                 'verbalAt','writtenAt','uniReportAt','ackAt','meetDate'];
+                 'verbalAt','writtenAt','uniReportAt','facNotifyAt','ackAt','meetDate'];
 function maskSensitive_(x) {
   var m = { restricted:true, title:'(ข้อมูลอ่อนไหว — จำกัดการเข้าถึง)', detail:'',
             reporter:'(จำกัดการเข้าถึง)', reporterEmail:'', reporterPos:'',
@@ -1746,7 +1746,7 @@ function createIncident_(p) {
     confirmNote:'', causes:[], investNote:'', meetDate:'', meetPlace:'', capa:[], monitor:'', capaNote:'', deputyNote:'', monitorNote:'', reviewNote:'', ackNote:'', ackAt:'', closeNote:'',
     /* แจ้งด้วยวาจา = เวลาที่ผู้รายงานระบุว่าแจ้งหัวหน้างานจริง (ว่าง = ยังไม่ได้แจ้ง ให้หัวหน้างานบันทึกตอนยืนยันข้อเท็จจริง)
        ลายลักษณ์อักษร = เวลาที่ส่งรายงานนี้ในระบบ (รุ่น 2.8.45 — เดิมใช้เวลาส่งรายงานทั้งสองช่อง) */
-    verbalAt:verbalStamp_(p.verbalAt, date, p.time), writtenAt:ts, uniReportAt:'', files:[], version:1,
+    verbalAt:verbalStamp_(p.verbalAt, date, p.time), writtenAt:ts, uniReportAt:'', facNotifyAt:'', files:[], version:1,
     log:[{ t:'บันทึกรายงานเข้าสู่ระบบ', by:rec_by_(u, p.anon), d:ts, hi:1 }]
   };
 
@@ -1913,7 +1913,10 @@ function advanceStatus_(id, to, payload) {
      เดิม assessed ไม่อยู่ในตาราง ผู้รายงานจึงดันเรื่องของตนจาก confirmed ไป assessed ได้เองโดยไม่มีการประเมินระดับ
      Tests.gs ล็อกไว้แล้วว่าทุกสถานะใน STATUS_ORDER (ยกเว้น submitted ซึ่งเป็นขั้นเริ่มต้น) ต้องมีสิทธิ์กำกับ */
   var capNeeded = STATUS_CAP[to];
-  if (capNeeded) need_(u, capNeeded);
+  /* รุ่น 2.8.51 — หน่วยงานที่ไม่มีรองคณบดี (กำกับดูแล) หัวหน้าสำนักงานเสนอคณบดี / ผู้อำนวยการกอง รับทราบได้เลย
+     ข้ามสิทธิ์ review เฉพาะกรณีนี้ แล้วตรวจที่ assertOfficeMayForward_ ด้านล่างว่าหน่วยงานไม่มีรองคณบดี (กำกับดูแล) จริง */
+  var officeFwd = (to === 'reviewed' && u.role === 'office_head');
+  if (capNeeded && !officeFwd) need_(u, capNeeded);
 
   var r = notCancelled_(findScoped_(u, id));
   var p = payload || {};
@@ -1940,6 +1943,13 @@ function advanceStatus_(id, to, payload) {
   }
   /* คณบดีตรวจสอบผลการติดตามแทนได้เฉพาะคณะที่ยังไม่ได้กำหนดรองคณบดี (กำกับดูแล) */
   if (to === 'reviewed' && u.role === 'dean') { assertDeanMayReview_(u, r); p.reviewBySub = 1; }
+  if (officeFwd) { assertOfficeMayForward_(u, r); delete p.reviewBySub; }
+  /* รุ่น 2.8.51 — หัวหน้าสำนักงานต้องรายงานรองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง ทราบก่อนเริ่มสอบสวน
+     บังคับเฉพาะหน่วยงานที่มีทั้งหัวหน้าสำนักงานและผู้รับรายงาน (รองคณบดี (กำกับดูแล) หรือคณบดี) ในระบบ
+     ไม่ให้หน่วยงานที่ยังไม่ได้กำหนดบทบาทเหล่านี้ค้างที่ขั้นประเมินระดับ */
+  if (to === 'investigating' && !r.facNotifyAt && facultyHasRole_('office_head', r.faculty) &&
+      (facultyHasRole_('deputy_dean_sup', r.faculty) || facultyHasRole_('dean', r.faculty)))
+    throw apiError_('CONFLICT','หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย ต้องรายงานรองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง ทราบก่อน จึงจะเริ่มประชุมสอบสวนได้');
   /* ตรวจข้อมูลบังคับตามขั้นที่เซิร์ฟเวอร์ แม้ผู้เรียกข้ามหน้าจอหรือแก้ request เอง */
   if(to==='investigating') {
     p.meetDate=validDate_(p.meetDate,'วันที่ประชุมสอบสวน');
@@ -2054,6 +2064,8 @@ function advanceStatus_(id, to, payload) {
                   (p.monitorNote ? ' · ' + p.monitorNote : ''),
     reviewed     :(u.role === 'dean'
                     ? 'คณบดี / ผู้อำนวยการกอง ตรวจสอบผลการติดตามมาตรการแทนรองคณบดี (กำกับดูแล)'
+                    : officeFwd
+                    ? 'หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย เสนอผลการติดตามมาตรการต่อคณบดี / ผู้อำนวยการกอง (หน่วยงานไม่มีรองคณบดี (กำกับดูแล))'
                     : 'รองคณบดี (กำกับดูแล) ตรวจสอบผลการติดตามมาตรการแล้ว') +
                   (p.reviewNote ? ' · ' + p.reviewNote : ''),
     acknowledged :'คณบดี / ผู้อำนวยการกอง รับทราบผลการดำเนินการและมาตรการแก้ไขแล้ว' +
@@ -2096,7 +2108,8 @@ function advanceStatus_(id, to, payload) {
     to === 'monitoring' ? 'ครั้งที่ ' + monitorRound + (undone.length ? ' · ยกเลิกสถานะแล้วเสร็จ ' + undone.length + ' รายการ' : '') :
     /* reviewBySub ไม่มีคอลัมน์ในชีต การทำแทนจึงบันทึกไว้ที่ไทม์ไลน์ (ข้อความขั้น reviewed) และที่นี่
        ค่าที่หน้าจอส่งมาไม่มีผล เซิร์ฟเวอร์ตัดสินเองจากบทบาทผู้กดเท่านั้น */
-    (to === 'reviewed' && u.role === 'dean') ? 'คณบดี / ผู้อำนวยการกอง ตรวจสอบแทนรองคณบดี (กำกับดูแล)' : '');
+    (to === 'reviewed' && u.role === 'dean') ? 'คณบดี / ผู้อำนวยการกอง ตรวจสอบแทนรองคณบดี (กำกับดูแล)' :
+    officeFwd ? 'หัวหน้าสำนักงานเสนอคณบดี / ผู้อำนวยการกอง โดยตรง (ไม่มีรองคณบดี (กำกับดูแล))' : '');
   return { status:to };
 }
 
@@ -2934,6 +2947,66 @@ function assertDeanMayReview_(u, r) {
   if (hasSup) throw apiError_('FORBIDDEN',
     'คณะนี้มีรองคณบดี (กำกับดูแล) อยู่แล้ว การตรวจสอบผลการติดตามเป็นหน้าที่ของบทบาทดังกล่าว');
   return true;
+}
+
+/* มีผู้ใช้ที่ใช้งานอยู่ในบทบาทนี้ในคณะ/หน่วยงานของเรื่องหรือไม่ */
+function facultyHasRole_(role, faculty) {
+  return readAll_('Users').some(function (x) {
+    return x.active && x.role === role && sameFaculty_(x.faculty, faculty);
+  });
+}
+
+/* รุ่น 2.8.51 — หัวหน้าสำนักงานเสนอคณบดี / ผู้อำนวยการกอง รับทราบได้โดยตรงเฉพาะหน่วยงานที่ไม่มีรองคณบดี (กำกับดูแล)
+   หน่วยงานที่มีรองคณบดี (กำกับดูแล) ยังต้องผ่านการตรวจสอบของบทบาทนั้นตามเดิม */
+function assertOfficeMayForward_(u, r) {
+  if (facultyHasRole_('deputy_dean_sup', r.faculty)) throw apiError_('FORBIDDEN',
+    'หน่วยงานนี้มีรองคณบดี (กำกับดูแล) อยู่แล้ว ต้องให้รองคณบดี (กำกับดูแล) ตรวจสอบผลการติดตามก่อนเสนอคณบดี / ผู้อำนวยการกอง');
+  return true;
+}
+
+/* รุ่น 2.8.51 — หัวหน้าสำนักงานรายงานรองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง ทราบ ก่อนเริ่มประชุมสอบสวน
+   ส่งอีเมลถึงผู้ใช้สองบทบาทนี้ของหน่วยงานเดียวกัน (หน่วยงานที่ไม่มีรองคณบดี (กำกับดูแล) ส่งถึงคณบดี / ผู้อำนวยการกองอย่างเดียว)
+   ส่งอีเมลก่อนแล้วจึงบันทึกเวลา ถ้าอีเมลส่งไม่ออก เรื่องยังไม่ถือว่ารายงานแล้ว ผู้ใช้กดซ้ำได้ */
+function notifyFacultyLeaders_(id, note) {
+  var u = me_();
+  need_(u, 'facNotify');
+  var r = notCancelled_(findScoped_(u, id));
+  if (r.status !== 'assessed') throw apiError_('CONFLICT','รายงานรองคณบดี (กำกับดูแล) และคณบดี ทราบได้ในขั้นประเมินระดับแล้ว ก่อนเริ่มประชุมสอบสวนเท่านั้น');
+  if (r.facNotifyAt) throw apiError_('CONFLICT','เรื่องนี้รายงานรองคณบดี (กำกับดูแล) และคณบดี ทราบแล้วเมื่อ ' + r.facNotifyAt);
+  note = txt_(note, 1000).trim();
+  var to = readAll_('Users').filter(function (x) {
+    return x.active && (x.role === 'deputy_dean_sup' || x.role === 'dean') && sameFaculty_(x.faculty, r.faculty);
+  });
+  var hasSup = to.some(function (x) { return x.role === 'deputy_dean_sup'; });
+  if (!to.length) throw apiError_('CONFLICT',
+    'หน่วยงานนี้ยังไม่มีผู้ใช้ในบทบาทรองคณบดี (กำกับดูแล) หรือคณบดี / ผู้อำนวยการกอง ในระบบ กรุณาให้ผู้ดูแลระดับคณะกำหนดสิทธิ์ก่อน');
+  var who = hasSup ? 'รองคณบดี (กำกับดูแล) และคณบดี / ผู้อำนวยการกอง' : 'คณบดี / ผู้อำนวยการกอง';
+  var body = [
+    'หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย รายงาน' + who + ' ทราบอุบัติการณ์ ก่อนเริ่มประชุมสอบสวน',
+    '',
+    'เลขที่      : ' + r.id,
+    'เรื่อง       : ' + mailTitle_(r),
+    'คณะ/หน่วยงาน : ' + r.faculty + ' / ' + r.orgUnit,
+    'วันเวลา     : ' + r.date + ' ' + r.time,
+    'ระดับ       : ' + (r.level || '-'),
+    'รายงานโดย   : ' + u.name + ' (' + u.position + ')',
+    note ? '\nหมายเหตุ    : ' + note : '',
+    '',
+    'เปิดเรื่องนี้ในระบบ: ' + appUrl_() + '?incident=' + encodeURIComponent(r.id)
+  ].join('\n');
+  try {
+    MailApp.sendEmail({ to:to.map(function (x) { return x.email; }).join(','),
+      subject:'[' + CONFIG.SYSTEM_NAME + '] รายงาน' + who + 'ทราบ ก่อนสอบสวน — ' + r.id, body:body });
+  } catch (e) {
+    try { audit_(u, 'ส่งอีเมลแจ้งเตือนไม่สำเร็จ', id, 'รายงานผู้บริหารก่อนสอบสวน · ' + String(e && e.message || e).slice(0, 200), 'FAILED', 'MAIL_FAILED'); } catch (ignore) {}
+    throw apiError_('CONFLICT', 'ส่งอีเมลรายงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+  }
+  r.facNotifyAt = now_();
+  r.log.push({ t:'หัวหน้าสำนักงานเลขานุการ/ผู้ได้รับมอบหมาย รายงาน' + who + ' ทราบ ก่อนเริ่มประชุมสอบสวน' + (note ? ' · ' + note : ''),
+               by:u.name + ' (' + u.position + ')', d:r.facNotifyAt, hi:1 });
+  updateIncident_(r);
+  audit_(u, 'รายงานผู้บริหารคณะก่อนสอบสวน', id, 'ผู้รับ ' + to.length + ' คน' + (hasSup ? '' : ' · ไม่มีรองคณบดี (กำกับดูแล)'));
+  return { facNotifyAt:r.facNotifyAt, recipients:to.length, deanOnly:!hasSup };
 }
 
 /* ส่งเรื่องกลับขั้นก่อนหน้า — ทางเลือกที่ถูกต้องแทนการยกเลิกทั้งเรื่อง
